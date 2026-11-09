@@ -44,11 +44,39 @@ Modules are pulled in on demand with no forced coupling; `core` has no Quarkus e
 
 ## Getting Started
 
-Import the BOM and the modules you need in a new service:
+Import the BOM and the modules you need. Choose your build tool:
+
+**Gradle (Kotlin DSL)**
+
+```kotlin
+// settings.gradle.kts — import the platform
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+    }
+}
+
+// build.gradle.kts
+dependencies {
+    implementation(platform("io.quarkus.platform:quarkus-bom:3.40.1.1"))
+    implementation(platform("io.github.foundry4j:quarkforge-bom:1.0.0"))
+
+    implementation("io.github.foundry4j:quarkforge-web")
+}
+```
+
+**Maven**
 
 ```xml
 <dependencyManagement>
     <dependencies>
+        <dependency>
+            <groupId>io.quarkus.platform</groupId>
+            <artifactId>quarkus-bom</artifactId>
+            <version>3.40.1.1</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
         <dependency>
             <groupId>io.github.foundry4j</groupId>
             <artifactId>quarkforge-bom</artifactId>
@@ -802,21 +830,21 @@ Endpoint overview:
 | POST | `/orders/{id}/cancel` | Cancel an order and restore stock |
 | GET | `/admin/operation-logs?module=&actor=&page=&size=` | Query operation logs; requires `oplog:read` |
 
-The service seeds an administrator (`admin / Admin@123456`) and two demo products on first startup. Enable the example module in the root `pom.xml` before running it:
+The service seeds an administrator (`admin / Admin@123456`) and two demo products on first startup. Enable the example module in the root `settings.gradle.kts` before running it:
 
-```xml
-<module>examples/mall-service</module>
+```kotlin
+include("examples:mall-service")
 ```
 
 ```bash
-mvn -pl examples/mall-service -am install -DskipTests
-mvn -pl examples/mall-service quarkus:dev
+./gradlew :examples:mall-service:build -x test
+./gradlew :examples:mall-service:quarkusDev
 ```
 
 Tests:
 
 ```bash
-mvn -pl examples/mall-service -am test
+./gradlew :examples:mall-service:test
 ```
 
 Swagger UI is available at `http://localhost:8080/q/swagger-ui`; log in as the administrator to exercise the product and operation-log endpoints. The example uses in-memory H2 and demo JWT keys from the repository; replace both in production.

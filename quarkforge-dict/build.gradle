@@ -1,0 +1,13 @@
+dependencies {
+    api project(':quarkforge-core')
+    api project(':quarkforge-data')
+    api project(':quarkforge-web')
+    api project(':quarkforge-cache')
+    api 'io.quarkus:quarkus-arc'
+    api 'io.quarkus:quarkus-hibernate-orm-panache'
+    api 'io.quarkus:quarkus-jackson'
+    api 'org.mapstruct:mapstruct:1.6.3'
+    annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+    testImplementation 'io.quarkus:quarkus-jdbc-h2'
+    testImplementation 'io.rest-assured:rest-assured'
+}

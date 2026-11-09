@@ -1,0 +1,7 @@
+dependencies {
+    api 'io.quarkus:quarkus-arc'
+    api 'io.quarkus:quarkus-jackson'
+    api 'jakarta.persistence:jakarta.persistence-api'
+    testImplementation 'io.quarkus:quarkus-hibernate-orm-panache'
+    testImplementation 'io.quarkus:quarkus-jdbc-h2'
+}

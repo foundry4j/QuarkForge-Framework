@@ -1,0 +1,5 @@
+dependencies {
+    api 'io.quarkus:quarkus-smallrye-health'
+    api 'io.quarkus:quarkus-micrometer-registry-prometheus'
+    api 'io.quarkus:quarkus-smallrye-openapi'
+}

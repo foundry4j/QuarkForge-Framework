@@ -1,0 +1,6 @@
+dependencies {
+    api project(':quarkforge-core')
+    api 'io.quarkus:quarkus-arc'
+    api 'io.quarkus:quarkus-security'
+    api 'io.quarkus:quarkus-vertx-http'
+}

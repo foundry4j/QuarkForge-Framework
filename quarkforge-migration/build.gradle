@@ -1,0 +1,4 @@
+dependencies {
+    api 'io.quarkus:quarkus-flyway'
+    testImplementation 'io.quarkus:quarkus-jdbc-h2'
+}

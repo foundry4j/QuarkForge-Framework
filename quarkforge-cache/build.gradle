@@ -1,0 +1,5 @@
+dependencies {
+    api project(':quarkforge-core')
+    api 'io.quarkus:quarkus-arc'
+    api 'com.github.ben-manes.caffeine:caffeine'
+}

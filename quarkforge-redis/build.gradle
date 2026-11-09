@@ -1,0 +1,9 @@
+dependencies {
+    api project(':quarkforge-core')
+    api project(':quarkforge-cache')
+    api project(':quarkforge-ratelimit')
+    api project(':quarkforge-idempotency')
+    api 'io.quarkus:quarkus-redis-client'
+    api 'io.quarkus:quarkus-jackson'
+    testImplementation 'io.quarkus:quarkus-junit-mockito'
+}

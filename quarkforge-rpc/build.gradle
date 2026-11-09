@@ -1,0 +1,38 @@
+// quarkforge-rpc —— gRPC
+// 需要 protobuf 编译 src/main/proto/*.proto 生成 Java stub
+plugins {
+    id 'com.google.protobuf' version '0.9.4'
+}
+
+protobuf {
+    protoc {
+        artifact = 'com.google.protobuf:protoc:3.25.5'
+    }
+    plugins {
+        grpc {
+            artifact = 'io.grpc:protoc-gen-grpc-java:1.65.1'
+        }
+    }
+    generateProtoTasks {
+        all()*.plugins {
+            grpc {}
+        }
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs 'build/generated/source/proto/main/grpc'
+            srcDirs 'build/generated/source/proto/main/java'
+        }
+    }
+}
+
+dependencies {
+    api project(':quarkforge-core')
+    api 'io.quarkus:quarkus-arc'
+    api 'io.quarkus:quarkus-grpc'
+    // protoc-gen-grpc-java 生成的代码用了 javax.annotation.Generated
+    compileOnly 'javax.annotation:javax.annotation-api:1.3.2'
+}

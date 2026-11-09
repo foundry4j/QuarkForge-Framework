@@ -1,0 +1,6 @@
+dependencies {
+    api project(':quarkforge-core')
+    api 'io.quarkus:quarkus-smallrye-jwt'
+    api 'io.smallrye:smallrye-jwt-build:4.6.4'
+    testImplementation 'io.quarkus:quarkus-junit-mockito'
+}

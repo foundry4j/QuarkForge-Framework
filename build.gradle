@@ -1,0 +1,84 @@
+// Java 27 / Gradle Groovy DSL / Quarkus 3.40
+
+plugins {
+    id 'jacoco'
+}
+
+// ---- 版本 ----
+ext {
+    quarkusPlatform = '3.40.1.1'
+    quarkusBom      = "io.quarkus.platform:quarkus-bom:${quarkusPlatform}"
+    mapstructVer    = '1.6.3'
+    poiVer          = '5.4.1'
+}
+
+// ---- 全工程坐标 ----
+allprojects {
+    group = 'io.github.foundry4j'
+    version = '1.0.0'
+}
+
+// ---- 子模块通用配置 ----
+subprojects { sp ->
+    // BOM 平台模块单独处理
+    if (sp.name == 'quarkforge-bom') return
+
+    apply plugin: 'java-library'
+    apply plugin: 'jacoco'
+
+    java {
+        // 直接用当前 JDK（系统已安装 Java 27），避免 Gradle 尝试下载未知版本
+        sourceCompatibility = JavaVersion.VERSION_27
+        targetCompatibility = JavaVersion.VERSION_27
+        withSourcesJar()
+    }
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+
+    dependencies {
+        // 除纯 JDK 的 quarkforge-core 外，全部导入 Quarkus BOM + quarkus-junit
+        if (sp.name == 'quarkforge-core') {
+            // 纯 JDK 模块用原生 JUnit 5
+            testImplementation 'org.junit.jupiter:junit-jupiter:5.11.3'
+            testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+        } else {
+            api platform(rootProject.quarkusBom)
+            testImplementation 'io.quarkus:quarkus-junit'
+        }
+    }
+
+    // ---- 编译 ----
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.compilerArgs = ['-parameters']
+    }
+
+    // ---- 测试 ----
+    test {
+        useJUnitPlatform()
+        finalizedBy jacocoTestReport
+        // Quarkus 内部模块访问需要的 JVM 开放参数
+        jvmArgs '-Xmx768m',
+                '-XX:+HeapDumpOnOutOfMemoryError',
+                '--add-opens=java.base/java.lang.invoke=ALL-UNNAMED',
+                '--add-opens=java.base/java.lang=ALL-UNNAMED',
+                '--add-opens=java.base/java.util=ALL-UNNAMED',
+                '--add-opens=java.base/java.nio=ALL-UNNAMED',
+                '--add-opens=java.base/java.io=ALL-UNNAMED'
+    }
+
+    // ---- JaCoCo ----
+    jacoco {
+        toolVersion = '0.8.15'
+    }
+    jacocoTestReport {
+        dependsOn test
+        reports {
+            xml.required = true
+            html.required = true
+        }
+    }
+}

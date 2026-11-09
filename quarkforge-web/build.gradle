@@ -1,0 +1,7 @@
+dependencies {
+    api project(':quarkforge-core')
+    api 'io.quarkus:quarkus-rest'
+    api 'io.quarkus:quarkus-rest-jackson'
+    api 'io.quarkus:quarkus-hibernate-validator'
+    testImplementation 'io.rest-assured:rest-assured'
+}

@@ -1,0 +1,8 @@
+dependencies {
+    api project(':quarkforge-core')
+    api project(':quarkforge-web')
+    api 'org.apache.poi:poi-ooxml:5.4.1'
+    api 'jakarta.ws.rs:jakarta.ws.rs-api'
+    api 'io.quarkus.resteasy.reactive:resteasy-reactive-common'
+    runtimeOnly 'org.jboss.logmanager:log4j2-jboss-logmanager:2.0.1.Final'
+}

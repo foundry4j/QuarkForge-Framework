@@ -1,6 +1,7 @@
 package io.github.foundry4j.quarkforge.cache;
 
 import io.github.foundry4j.quarkforge.cache.annotation.CacheWarmup;
+import io.quarkus.arc.Unremovable;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -42,6 +43,7 @@ class CacheWarmupTest {
         assertFalse(WarmupService.EVENTS.contains("withArgs"));
     }
 
+    @Unremovable
     @ApplicationScoped
     static class WarmupService {
 

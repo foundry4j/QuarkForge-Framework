@@ -1,0 +1,7 @@
+dependencies {
+    api project(':quarkforge-core')
+    api 'io.quarkus:quarkus-arc'
+    api 'io.quarkus:quarkus-jackson'
+    api 'org.jobrunr:quarkus-jobrunr:9.0.1'
+    testImplementation 'io.quarkus:quarkus-jdbc-h2'
+}

@@ -1,0 +1,45 @@
+// QuarkForge BOM —— 只用于依赖版本对齐
+// 业务方项目只需：
+//   implementation platform("io.github.foundry4j:quarkforge-bom:1.0.0")
+//   implementation platform("io.quarkus.platform:quarkus-bom:3.40.1.1")
+plugins {
+    id 'java-platform'
+}
+
+javaPlatform {
+    allowDependencies()
+}
+
+dependencies {
+    api platform(rootProject.quarkusBom)
+
+    api project(':quarkforge-core')
+    api project(':quarkforge-web')
+    api project(':quarkforge-validation')
+    api project(':quarkforge-data')
+    api project(':quarkforge-audit')
+    api project(':quarkforge-crypto')
+    api project(':quarkforge-cache')
+    api project(':quarkforge-dict')
+    api project(':quarkforge-excel')
+    api project(':quarkforge-migration')
+    api project(':quarkforge-security')
+    api project(':quarkforge-redis')
+    api project(':quarkforge-ratelimit')
+    api project(':quarkforge-degrade')
+    api project(':quarkforge-idempotency')
+    api project(':quarkforge-messaging')
+    api project(':quarkforge-messaging-rabbitmq')
+    api project(':quarkforge-outbox')
+    api project(':quarkforge-rpc')
+    api project(':quarkforge-scheduler')
+    api project(':quarkforge-notification')
+    api project(':quarkforge-observability')
+    api project(':quarkforge-test')
+
+    constraints {
+        api "org.mapstruct:mapstruct:${rootProject.mapstructVer}"
+        api "org.mapstruct:mapstruct-processor:${rootProject.mapstructVer}"
+        api "org.apache.poi:poi-ooxml:${rootProject.poiVer}"
+    }
+}
