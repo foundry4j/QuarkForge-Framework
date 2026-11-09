@@ -1,6 +1,6 @@
 // QuarkForge BOM —— 只用于依赖版本对齐
 // 业务方项目只需：
-//   implementation platform("io.github.foundry4j:quarkforge-bom:1.0.0")
+//   implementation platform("io.github.foundry4j:quarkforge-bom:1.0.1")
 //   implementation platform("io.quarkus.platform:quarkus-bom:3.40.1.1")
 plugins {
     id 'java-platform'

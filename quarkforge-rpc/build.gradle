@@ -20,14 +20,8 @@ protobuf {
     }
 }
 
-sourceSets {
-    main {
-        java {
-            srcDirs 'build/generated/source/proto/main/grpc'
-            srcDirs 'build/generated/source/proto/main/java'
-        }
-    }
-}
+// protobuf 插件会自动把 build/generated/source/proto/main/{java,grpc} 加入 main 源集，
+// 这里不再重复声明，否则 sourcesJar 会因重复条目失败。
 
 dependencies {
     api project(':quarkforge-core')

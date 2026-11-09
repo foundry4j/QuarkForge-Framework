@@ -58,7 +58,7 @@ dependencyResolutionManagement {
 // build.gradle.kts
 dependencies {
     implementation(platform("io.quarkus.platform:quarkus-bom:3.40.1.1"))
-    implementation(platform("io.github.foundry4j:quarkforge-bom:1.0.0"))
+    implementation(platform("io.github.foundry4j:quarkforge-bom:1.0.1"))
 
     implementation("io.github.foundry4j:quarkforge-web")
 }
@@ -79,7 +79,7 @@ dependencies {
         <dependency>
             <groupId>io.github.foundry4j</groupId>
             <artifactId>quarkforge-bom</artifactId>
-            <version>1.0.0</version>
+            <version>1.0.1</version>
             <type>pom</type>
             <scope>import</scope>
         </dependency>

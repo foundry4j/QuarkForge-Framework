@@ -1,36 +1,108 @@
-// Java 27 / Gradle Groovy DSL / Quarkus 3.40
-
 plugins {
     id 'jacoco'
+    id 'org.sonarqube' version '7.5.0.8588'
+    id 'com.vanniktech.maven.publish' version '0.37.0' apply false
 }
 
-// ---- 版本 ----
 ext {
     quarkusPlatform = '3.40.1.1'
     quarkusBom      = "io.quarkus.platform:quarkus-bom:${quarkusPlatform}"
     mapstructVer    = '1.6.3'
     poiVer          = '5.4.1'
+
+    pkgUrl  = 'https://github.com/foundry4j/QuarkForge'
+    pkgScm  = 'scm:git:https://github.com/foundry4j/QuarkForge.git'
+    pkgDesc = 'A modular rapid microservice development framework based on Quarkus'
+}
+
+def moduleDescriptions = [
+    'quarkforge-core'              : 'Unified result body, error codes, paging and snowflake IDs',
+    'quarkforge-web'               : 'Global exception mapping, response wrapping and access logging',
+    'quarkforge-validation'        : 'Business-oriented Bean Validation annotations',
+    'quarkforge-data'              : 'Base entities, repositories, multi-tenant and soft delete support',
+    'quarkforge-audit'             : 'Audit logging with field-level diffs',
+    'quarkforge-crypto'            : 'AES-GCM field encryption and sensitive data masking',
+    'quarkforge-cache'             : 'Cache abstraction with Caffeine and startup warm-up',
+    'quarkforge-dict'              : 'Multi-tenant dictionary types and items',
+    'quarkforge-excel'             : 'Streaming Excel and CSV import/export',
+    'quarkforge-migration'         : 'Flyway database migration starter',
+    'quarkforge-security'          : 'JWT issuance, current-user context and RBAC annotations',
+    'quarkforge-redis'             : 'Redis cache, distributed locks, rate limiting and idempotency',
+    'quarkforge-ratelimit'         : 'Annotation-driven rate limiting',
+    'quarkforge-degrade'           : 'Fault tolerance with retries, circuit breakers and timeouts',
+    'quarkforge-idempotency'       : 'Idempotent request handling with result replay',
+    'quarkforge-messaging'         : 'Message envelope, publisher SPI and consumer abstraction',
+    'quarkforge-messaging-rabbitmq': 'RabbitMQ transport for messaging',
+    'quarkforge-outbox'            : 'Transactional outbox with delayed delivery and retries',
+    'quarkforge-rpc'               : 'gRPC infrastructure with error mapping and trace propagation',
+    'quarkforge-scheduler'         : 'JobRunr based job scheduling',
+    'quarkforge-notification'      : 'Multi-tenant notification center with WebSocket push',
+    'quarkforge-observability'     : 'OpenAPI, health checks and Prometheus metrics',
+    'quarkforge-test'              : 'Testing utilities for Quarkus based services',
+]
+
+def configurePom = { MavenPom pom, String artifactId ->
+    pom.name.set(artifactId)
+    pom.description.set(moduleDescriptions[artifactId] ?: rootProject.pkgDesc)
+    pom.url.set(rootProject.pkgUrl)
+    pom.licenses {
+        license {
+            name.set('MIT License')
+            url.set('https://opensource.org/license/mit')
+            distribution.set('repo')
+        }
+    }
+    pom.developers {
+        developer {
+            id.set('foundry4j')
+            name.set('foundry4j')
+            email.set('foundry4j@gmail.com')
+            url.set('https://github.com/foundry4j')
+        }
+    }
+    pom.scm {
+        connection.set(rootProject.pkgScm)
+        developerConnection.set('scm:git:ssh://git@github.com/foundry4j/QuarkForge.git')
+        url.set(rootProject.pkgUrl)
+    }
+}
+
+// ---- 发布：由 Vanniktech 插件统一处理 sources/javadoc/GPG/Central Portal ----
+def configurePublishing = { Project p ->
+    p.apply plugin: 'com.vanniktech.maven.publish'
+    p.mavenPublishing {
+        // 上传后自动 release；未提供签名材料时不会走到这一步
+        publishToMavenCentral(true)
+        if (p.providers.gradleProperty('signingInMemoryKey').present) {
+            signAllPublications()
+        }
+        pom {
+            configurePom(delegate as MavenPom, p.name)
+        }
+    }
 }
 
 // ---- 全工程坐标 ----
 allprojects {
     group = 'io.github.foundry4j'
-    version = '1.0.0'
+    version = '1.0.1'
 }
 
 // ---- 子模块通用配置 ----
 subprojects { sp ->
-    // BOM 平台模块单独处理
-    if (sp.name == 'quarkforge-bom') return
+    if (sp.name == 'quarkforge-bom') {
+        sp.pluginManager.withPlugin('java-platform') {
+            configurePublishing(sp)
+        }
+        return
+    }
 
     apply plugin: 'java-library'
     apply plugin: 'jacoco'
 
     java {
-        // 直接用当前 JDK（系统已安装 Java 27），避免 Gradle 尝试下载未知版本
         sourceCompatibility = JavaVersion.VERSION_27
         targetCompatibility = JavaVersion.VERSION_27
-        withSourcesJar()
     }
 
     repositories {
@@ -39,9 +111,7 @@ subprojects { sp ->
     }
 
     dependencies {
-        // 除纯 JDK 的 quarkforge-core 外，全部导入 Quarkus BOM + quarkus-junit
         if (sp.name == 'quarkforge-core') {
-            // 纯 JDK 模块用原生 JUnit 5
             testImplementation 'org.junit.jupiter:junit-jupiter:5.11.3'
             testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
         } else {
@@ -50,13 +120,24 @@ subprojects { sp ->
         }
     }
 
-    // ---- 编译 ----
     tasks.withType(JavaCompile).configureEach {
         options.encoding = 'UTF-8'
         options.compilerArgs = ['-parameters']
     }
 
-    // ---- 测试 ----
+    tasks.withType(Javadoc).configureEach {
+        options.encoding = 'UTF-8'
+        options.addStringOption('Xdoclint:none', '-quiet')
+        failOnError = false
+        doLast {
+            destinationDirectory.get().asFile.eachFileRecurse { f ->
+                if (f.name.endsWith('.woff') || f.name.endsWith('.woff2')) {
+                    f.delete()
+                }
+            }
+        }
+    }
+
     test {
         useJUnitPlatform()
         finalizedBy jacocoTestReport
@@ -70,7 +151,6 @@ subprojects { sp ->
                 '--add-opens=java.base/java.io=ALL-UNNAMED'
     }
 
-    // ---- JaCoCo ----
     jacoco {
         toolVersion = '0.8.15'
     }
@@ -81,4 +161,85 @@ subprojects { sp ->
             html.required = true
         }
     }
+
+    configurePublishing(sp)
+}
+
+subprojects {
+    apply plugin: 'org.sonarqube'
+}
+
+def measuredProjects = subprojects.findAll { it.name != 'quarkforge-bom' }
+
+tasks.register('jacocoRootReport', JacocoReport) {
+    group = 'verification'
+    description = '合并所有子模块的 JaCoCo 数据，生成 SonarCloud 使用的覆盖率报告'
+
+    dependsOn measuredProjects.collect { it.tasks.named('test') }
+
+    executionData.from(measuredProjects.collect { it.layout.buildDirectory.file('jacoco/test.exec') })
+    classDirectories.from(measuredProjects.collect {
+        it.layout.buildDirectory.dir('classes/java/main').get().asFile
+    })
+    sourceDirectories.from(measuredProjects.collect {
+        it.layout.projectDirectory.dir('src/main/java').asFile
+    })
+
+    reports {
+        xml.required = true
+        xml.outputLocation = layout.buildDirectory.file('reports/jacoco/root/jacocoRootReport.xml')
+        html.required = true
+        html.outputLocation = layout.buildDirectory.dir('reports/jacoco/root/html')
+    }
+}
+
+sonar {
+    properties {
+        property 'sonar.host.url', 'https://sonarcloud.io'
+        property 'sonar.organization', 'foundry4j'
+        property 'sonar.projectKey', 'foundry4j_QuarkForge'
+        property 'sonar.projectName', 'QuarkForge'
+        property 'sonar.sourceEncoding', 'UTF-8'
+        property 'sonar.coverage.jacoco.xmlReportPaths',
+                layout.buildDirectory.file('reports/jacoco/root/jacocoRootReport.xml').get().asFile.absolutePath
+        property 'sonar.exclusions', '**/build/**,examples/**'
+    }
+}
+
+tasks.named('sonar') {
+    dependsOn 'jacocoRootReport'
+    doFirst {
+        def hasToken = project.providers.gradleProperty('sonar.token').present ||
+            project.providers.environmentVariable('SONAR_TOKEN').present
+        if (!hasToken) {
+            throw new GradleException(
+                "Missing SonarCloud token: set the SONAR_TOKEN environment variable " +
+                    "or the 'sonar.token' Gradle property.")
+        }
+    }
+}
+
+def publishableProjects = subprojects.findAll { it.name.startsWith('quarkforge-') }
+
+// 发布凭据校验：挂在每个模块的发布任务上，保证在任何上传动作之前失败
+def checkReleaseProperties = {
+    def missing = ['mavenCentralUsername', 'mavenCentralPassword', 'signingInMemoryKey', 'signingInMemoryKeyPassword']
+        .findAll { !rootProject.providers.gradleProperty(it).present }
+    if (!missing.isEmpty()) {
+        throw new GradleException(
+            "Missing Gradle properties: ${missing.join(', ')}. " +
+                "See 'Publishing to Maven Central' in README.md for setup instructions.")
+    }
+}
+
+publishableProjects.each { p ->
+    p.tasks.matching { it.name == 'publishAndReleaseToMavenCentral' }.configureEach {
+        doFirst { checkReleaseProperties() }
+    }
+}
+
+tasks.register('publishAndReleaseToMavenCentral') {
+    group = 'publishing'
+    description = '上传并自动 release 所有模块到 Maven Central'
+    dependsOn publishableProjects.collect { "${it.path}:publishAndReleaseToMavenCentral" }
 }

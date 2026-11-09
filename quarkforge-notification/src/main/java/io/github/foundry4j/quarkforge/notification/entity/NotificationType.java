@@ -12,7 +12,7 @@ public enum NotificationType {
     COMMENT,
     /// 点赞收藏：有人点赞了你的内容。
     LIKE,
-    /// @提到：有人在评论中 @了你。
+    /// 提到：有人在评论中 @了你。
     MENTION,
     /// 审批流程：申请已通过/驳回。
     APPROVAL,

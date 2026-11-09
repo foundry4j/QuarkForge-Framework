@@ -28,34 +28,32 @@ jobs:
         with:
           distribution: temurin
           java-version: '27'
-          cache: maven
+          cache: gradle
 
       - name: Build and run tests with JaCoCo
-        # Stops at the test phase on purpose: verify/package trigger GPG signing
-        # and shading, which are only meant for release builds. JaCoCo's report
-        # goal is bound to the test phase and produces target/site/jacoco/jacoco.xml.
-        run: mvn --batch-mode --no-transfer-progress -Psonar test  -Dsurefire.timeout=600 -Dquarkus.bootstrap.blocking-task-runner=true
+        # jacocoRootReport merges the per-module exec files into the single
+        # XML that SonarCloud consumes (build/reports/jacoco/root/).
+        run: ./gradlew --no-daemon --console=plain build jacocoRootReport
 
       - name: SonarCloud analysis
         # Fork pull requests do not have access to repository secrets; the scan
         # is skipped automatically when SONAR_TOKEN is absent.
+        # The Sonar Gradle plugin reads the token from the SONAR_TOKEN env var.
         if: ${{ env.SONAR_TOKEN != '' }}
-        run: >
-          mvn --batch-mode --no-transfer-progress -Psonar sonar:sonar
-          -Dsonar.token=${SONAR_TOKEN}
+        run: ./gradlew --no-daemon --console=plain sonar
 
       - name: Upload JaCoCo report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-report
-          path: '**/target/site/jacoco/'
+          path: '**/build/reports/jacoco/'
           if-no-files-found: error
 
-      - name: Upload Surefire reports
+      - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: surefire-reports
-          path: '**/target/surefire-reports/'
+          name: test-reports
+          path: '**/build/test-results/test/*.xml'
           if-no-files-found: warn
