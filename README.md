@@ -2,12 +2,11 @@
 
 <img src="docs/logo.svg" alt="QuarkForge logo" align="right" width="128" height="128" />
 
-[![Maven Central](https://img.shields.io/maven-central/v/io.github.foundry4j/quarkforge-core?logo=apachemaven&color=blue)](https://central.sonatype.com/artifact/io.github.foundry4j/quarkforge-core)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=foundry4j_QuarkForge&metric=coverage)](https://sonarcloud.io/summary/new_code?id=foundry4j_QuarkForge)
 ![Java 27+](https://img.shields.io/badge/Java-27%2B-ED8B00?logo=openjdk&logoColor=white)
 [![Quarkus 3.40](https://img.shields.io/badge/Quarkus-3.40-blue)](https://img.shields.io/badge/Quarkus-3.40-blue)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.foundry4j/quarkforge-core?logo=apachemaven&color=blue)](https://central.sonatype.com/artifact/io.github.foundry4j/quarkforge-core)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=foundry4j_QuarkForge&metric=coverage)](https://sonarcloud.io/summary/new_code?id=foundry4j_QuarkForge)
 [![CI](https://github.com/foundry4j/QuarkForge/actions/workflows/ci.yml/badge.svg)](https://github.com/foundry4j/QuarkForge/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green)](https://opensource.org/license/mit)
 
 A modular rapid microservice development framework based on Quarkus, with built-in everyday development fundamentals such as unified responses, exception handling, data access, security authentication, rate limiting, Redis, and observability.
 

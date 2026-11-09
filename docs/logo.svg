@@ -1,13 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 152 195" role="img" aria-labelledby="qf-title">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160" role="img" aria-labelledby="qf-title qf-desc">
     <title id="qf-title">QuarkForge</title>
+    <desc id="qf-desc">A Q monogram forged from steel plates, its tail a molten spark</desc>
     <defs>
-        <linearGradient id="qf-heat" x1="0" y1="0" x2="0" y2="195" gradientUnits="userSpaceOnUse">
-            <stop offset="0.74" stop-color="#4695EB"/>
-            <stop offset="0.79" stop-color="#FF8A00"/>
-            <stop offset="1" stop-color="#FF5C00"/>
+        <linearGradient id="qf-badge" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#1C2942"/>
+            <stop offset="1" stop-color="#0A0F1A"/>
+        </linearGradient>
+        <linearGradient id="qf-ring" x1="0.05" y1="0" x2="0.95" y2="1">
+            <stop offset="0" stop-color="#A8E1FF"/>
+            <stop offset="0.45" stop-color="#4C9FF3"/>
+            <stop offset="1" stop-color="#2759BC"/>
+        </linearGradient>
+        <linearGradient id="qf-spark" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#FFE9A6"/>
+            <stop offset="0.4" stop-color="#FFB01F"/>
+            <stop offset="1" stop-color="#F4511E"/>
         </linearGradient>
     </defs>
-    <g transform="translate(-267 -8)">
-        <path fill="url(#qf-heat)" d="M404,89.39q0,25.9-10.49,43.07a52.31,52.31,0,0,1-29.61,23.24l32.3,33.39H373.29l-26.45-30.44-5.11.19q-30,0-46.27-18.22T279.17,89.2q0-32.93,16.34-51.05T341.92,20q29.24,0,45.66,18.45T404,89.39Zm-108.14,0q0,27.39,11.74,41.55t34.11,14.15q22.56,0,34.07-14.11t11.51-41.59q0-27.21-11.47-41.27T341.92,34.05q-22.56,0-34.3,14.16T295.88,89.39Z"/>
+    <rect width="160" height="160" rx="36" fill="url(#qf-badge)"/>
+    <rect x="0.9" y="0.9" width="158.2" height="158.2" rx="35.1" fill="none" stroke="#FFFFFF" stroke-opacity="0.09"/>
+    <g transform="translate(-6 -6)">
+        <circle cx="80" cy="80" r="36" fill="none" stroke="url(#qf-ring)" stroke-width="15"/>
+        <g stroke="#070D18" stroke-opacity="0.75" stroke-width="2.4">
+            <path d="M59.85 100.15 L49.24 110.76"/>
+            <path d="M49.24 49.24 L59.85 59.85"/>
+            <path d="M110.76 49.24 L100.15 59.85"/>
+        </g>
+        <path d="M104.04 94.14 L125.97 118.89 L118.89 125.97 L94.14 104.04 Z" fill="url(#qf-spark)"/>
     </g>
 </svg>
