@@ -2,6 +2,8 @@ plugins {
     id 'jacoco'
     id 'org.sonarqube' version '7.5.0.8588'
     id 'com.vanniktech.maven.publish' version '0.37.0' apply false
+    id 'io.quarkus' version '3.40.1.1' apply false
+    id 'com.google.protobuf' version '0.10.1' apply false
 }
 
 ext {
@@ -89,6 +91,9 @@ allprojects {
 }
 
 // ---- 子模块通用配置 ----
+// 并行测试时每个模块分到独立的 Quarkus 测试端口
+def testPortSeq = new java.util.concurrent.atomic.AtomicInteger(8100)
+
 subprojects { sp ->
     if (sp.name == 'quarkforge-bom') {
         sp.pluginManager.withPlugin('java-platform') {
@@ -97,8 +102,17 @@ subprojects { sp ->
         return
     }
 
+    def testPort = testPortSeq.getAndIncrement()
+
     apply plugin: 'java-library'
     apply plugin: 'jacoco'
+    // @QuarkusTest 需要构建工具提供应用模型；不应用 Quarkus 插件时 Quarkus 会按 IDE 模式
+    // 用 Tooling API 去跑 integrationTestClasses，直接失败。这里应用插件只为了拿到
+    // quarkusGenerate{Test,}AppModel，可执行应用的打包任务全部关闭。
+    apply plugin: 'io.quarkus'
+    tasks.matching { it.name in ['quarkusBuild', 'quarkusAppPartsBuild', 'quarkusDependenciesBuild'] }.configureEach {
+        enabled = false
+    }
 
     java {
         sourceCompatibility = JavaVersion.VERSION_27
@@ -141,6 +155,9 @@ subprojects { sp ->
     test {
         useJUnitPlatform()
         finalizedBy jacocoTestReport
+        // 多模块并行跑测试时，Quarkus 默认都用 8081 做测试端口，会互相抢占，按模块分配独立端口
+        systemProperty 'quarkus.http.test-port', "${testPort}"
+        systemProperty 'quarkus.http.test-ssl-port', "${testPort + 500}"
         // Quarkus 内部模块访问需要的 JVM 开放参数
         jvmArgs '-Xmx768m',
                 '-XX:+HeapDumpOnOutOfMemoryError',

@@ -1,8 +1,18 @@
 // quarkforge-rpc —— gRPC
 // 需要 protobuf 编译 src/main/proto/*.proto 生成 Java stub
-plugins {
-    id 'com.google.protobuf' version '0.9.4'
+//
+// Quarkus 插件（根脚本统一应用）会注入 native-test、quarkus-generated-sources 等源集，
+// 这些源集名带连字符，而对应配置是驼峰命名（nativeTestCompileOnly）。protobuf 插件按
+// <sourceSetName>CompileOnly 查找配置会抛 ConfigurationNotFound，这里补齐缺失的空配置。
+sourceSets.findAll { it.name.contains('-') }.each { ss ->
+    ['Implementation', 'CompileOnly', 'RuntimeOnly', 'AnnotationProcessor'].each { suffix ->
+        def cfgName = "${ss.name}${suffix}"
+        if (configurations.findByName(cfgName) == null) {
+            configurations.create(cfgName)
+        }
+    }
 }
+apply plugin: 'com.google.protobuf'
 
 protobuf {
     protoc {
