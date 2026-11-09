@@ -3,7 +3,6 @@ plugins {
     id 'org.sonarqube' version '7.5.0.8588'
     id 'com.vanniktech.maven.publish' version '0.37.0' apply false
     id 'io.quarkus' version '3.40.1.1' apply false
-    id 'com.google.protobuf' version '0.10.1' apply false
 }
 
 ext {
