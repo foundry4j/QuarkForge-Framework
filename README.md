@@ -124,6 +124,25 @@ public class UserResource {
 - Parameter validation failures (`@NotBlank`, `@Valid`) are automatically aggregated into a 400 response.
 - Every request gets a `traceId` written to the logging MDC and the `X-Trace-Id` response header.
 
+### Internationalization (core + web + validation)
+
+Responses are localized from the `Accept-Language` header. Error texts live in
+`i18n/messages*.properties` (`core`), validation texts in `ValidationMessages*.properties` (`validation`):
+
+| Request | `BizException(CommonErrorCode.NOT_FOUND)` message |
+|---------|---------------------------------------------------|
+| `Accept-Language: en` | The requested resource does not exist |
+| `Accept-Language: zh-CN`, or no header | 请求的资源不存在 |
+
+- Only the error text is translated: `code` never changes, so clients can keep switching on it.
+- Messages passed explicitly (`new BizException(code, "库存不足")`) are returned untouched.
+- Override any text by shipping your own `i18n/messages_<lang>.properties`, or replace the whole source
+  with `I18n.setMessageSource(...)` (database, config center, ...).
+- Outside an HTTP request: `I18n.message(CommonErrorCode.NOT_FOUND, Locale.ENGLISH)`; the fallback for
+  unsupported languages is configurable via `I18n.setDefaultLocale(...)` (defaults to `zh_CN`).
+- Custom validation annotations should use `{key}` messages (`String message() default "{my.app.rule}"`)
+  so the same mechanism applies.
+
 ### Parameter Validation (validation)
 
 Adds business-oriented validation annotations on top of standard Bean Validation (`@NotBlank` / `@Size`, etc.). Validation failures are mapped by the web layer to `400 {"code":40000,"message":"field error-message"}`.

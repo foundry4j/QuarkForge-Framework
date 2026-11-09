@@ -11,29 +11,34 @@ public class BizException extends RuntimeException {
 
     private final transient ErrorCode errorCode;
     private final int code;
+    private final boolean customMessage;
 
     public BizException(ErrorCode errorCode) {
         super(errorCode.message());
         this.errorCode = errorCode;
         this.code = errorCode.code();
+        this.customMessage = false;
     }
 
     public BizException(ErrorCode errorCode, String message) {
         super(message);
         this.errorCode = errorCode;
         this.code = errorCode.code();
+        this.customMessage = true;
     }
 
     public BizException(ErrorCode errorCode, String message, Throwable cause) {
         super(message, cause);
         this.errorCode = errorCode;
         this.code = errorCode.code();
+        this.customMessage = true;
     }
 
     public BizException(int code, String message) {
         super(message);
         this.errorCode = null;
         this.code = code;
+        this.customMessage = true;
     }
 
     /// 错误码数值。
@@ -44,5 +49,10 @@ public class BizException extends RuntimeException {
     /// 错误码对象，直接以数值构造时返回 `null`。
     public ErrorCode errorCode() {
         return errorCode;
+    }
+
+    /// 是否携带业务自定义文案。为 `false` 时由 web 层按请求语言本地化错误码文案。
+    public boolean hasCustomMessage() {
+        return customMessage;
     }
 }

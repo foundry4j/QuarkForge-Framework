@@ -20,7 +20,7 @@ import io.github.foundry4j.quarkforge.validation.validator.IdCardValidator;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface IdCard {
 
-    String message() default "身份证号格式不正确";
+    String message() default "{quarkforge.validation.id-card}";
 
     Class<?>[] groups() default {};
 

@@ -20,7 +20,7 @@ import io.github.foundry4j.quarkforge.validation.validator.PasswordStrengthValid
 @Retention(RetentionPolicy.RUNTIME)
 public @interface PasswordStrength {
 
-    String message() default "密码强度不满足要求";
+    String message() default "{quarkforge.validation.password-strength}";
 
     /// 最小长度。
     int min() default 8;

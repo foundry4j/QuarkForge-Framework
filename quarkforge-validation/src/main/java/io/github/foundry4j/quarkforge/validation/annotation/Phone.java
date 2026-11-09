@@ -20,7 +20,7 @@ import io.github.foundry4j.quarkforge.validation.validator.PhoneValidator;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Phone {
 
-    String message() default "手机号格式不正确";
+    String message() default "{quarkforge.validation.phone}";
 
     Class<?>[] groups() default {};
 

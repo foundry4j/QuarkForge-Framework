@@ -20,7 +20,7 @@ import io.github.foundry4j.quarkforge.validation.validator.BankCardValidator;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface BankCard {
 
-    String message() default "银行卡号格式不正确";
+    String message() default "{quarkforge.validation.bank-card}";
 
     Class<?>[] groups() default {};
 

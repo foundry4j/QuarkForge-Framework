@@ -4,4 +4,6 @@ dependencies {
     api 'io.quarkus:quarkus-rest-jackson'
     api 'io.quarkus:quarkus-hibernate-validator'
     testImplementation 'io.rest-assured:rest-assured'
+    // 仅测试用：验证校验注解文案的按请求语言解析
+    testImplementation project(':quarkforge-validation')
 }

@@ -1,12 +1,16 @@
 package io.github.foundry4j.quarkforge.web.exception;
 
 import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
 import io.github.foundry4j.quarkforge.core.api.CommonErrorCode;
 import io.github.foundry4j.quarkforge.core.api.Result;
+import io.github.foundry4j.quarkforge.core.i18n.I18n;
+import io.github.foundry4j.quarkforge.web.i18n.Locales;
 import io.quarkus.logging.Log;
 
 /// ## GlobalExceptionMapper
@@ -14,8 +18,13 @@ import io.quarkus.logging.Log;
 ///
 /// - [WebApplicationException]（含 404/405/401 等框架内建异常）按状态码包装为统一响应体
 /// - 其余未捕获异常记录日志并返回 500，避免堆栈信息泄露给调用方
+///
+/// 文案同样按 `Accept-Language` 本地化，查找键为 `error.<code>`。
 @Provider
 public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
+
+    @Context
+    HttpHeaders headers;
 
     @Override
     public Response toResponse(Throwable exception) {
@@ -28,7 +37,8 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
         }
         Log.error("未捕获的服务端异常", exception);
         return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                .entity(Result.error(CommonErrorCode.INTERNAL_ERROR))
+                .entity(Result.error(CommonErrorCode.INTERNAL_ERROR.code(),
+                        I18n.message(CommonErrorCode.INTERNAL_ERROR, Locales.resolve(headers))))
                 .type(MediaType.APPLICATION_JSON)
                 .build();
     }
@@ -44,6 +54,6 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
             case 429 -> CommonErrorCode.TOO_MANY_REQUESTS;
             default -> CommonErrorCode.INTERNAL_ERROR;
         };
-        return mapped.message();
+        return I18n.message(mapped, Locales.resolve(headers));
     }
 }

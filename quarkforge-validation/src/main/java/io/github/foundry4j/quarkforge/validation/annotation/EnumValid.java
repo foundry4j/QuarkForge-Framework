@@ -32,7 +32,7 @@ public @interface EnumValid {
     /// 是否忽略大小写比较。
     boolean ignoreCase() default false;
 
-    String message() default "必须是有效的枚举值";
+    String message() default "{quarkforge.validation.enum-valid}";
 
     Class<?>[] groups() default {};
 
