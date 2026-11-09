@@ -28,19 +28,30 @@ jobs:
         with:
           distribution: temurin
           java-version: '27'
-          cache: gradle
 
-      - name: Build and run tests with JaCoCo
-        # jacocoRootReport merges the per-module exec files into the single
-        # XML that SonarCloud consumes (build/reports/jacoco/root/).
-        run: ./gradlew --no-daemon --console=plain build jacocoRootReport
+      - name: Restore Gradle caches
+        # 不要用 setup-java 的 cache: gradle —— 它的 key 包含所有构建脚本的哈希，
+        # 改一行 build.gradle 整个依赖缓存就失效，CI 每次都要重新下载几百 MB。
+        # 这里用 restore-keys 兜底：命中任意历史缓存即可复用依赖、wrapper 和 build cache。
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle', '**/gradle.properties', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
 
-      - name: SonarCloud analysis
-        # Fork pull requests do not have access to repository secrets; the scan
-        # is skipped automatically when SONAR_TOKEN is absent.
-        # The Sonar Gradle plugin reads the token from the SONAR_TOKEN env var.
-        if: ${{ env.SONAR_TOKEN != '' }}
-        run: ./gradlew --no-daemon --console=plain sonar
+      - name: Build, test and analyze
+        # 合并成一次 Gradle 调用：24 个子项目的配置阶段不便宜，跑两遍等于白付一次。
+        # jacocoRootReport 把各模块的 exec 合并成 SonarCloud 需要的单个 XML；
+        # fork pull request 拿不到 SONAR_TOKEN，此时跳过扫描。
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then
+            ./gradlew --console=plain build jacocoRootReport sonar
+          else
+            ./gradlew --console=plain build jacocoRootReport
+          fi
 
       - name: Upload JaCoCo report
         if: always()

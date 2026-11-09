@@ -112,6 +112,11 @@ subprojects { sp ->
     tasks.matching { it.name in ['quarkusBuild', 'quarkusAppPartsBuild', 'quarkusDependenciesBuild'] }.configureEach {
         enabled = false
     }
+    if (sp.name != 'quarkforge-rpc') {
+        tasks.matching { it.name in ['quarkusGenerateCode', 'quarkusGenerateCodeTests'] }.configureEach {
+            enabled = false
+        }
+    }
 
     java {
         sourceCompatibility = JavaVersion.VERSION_27
