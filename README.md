@@ -31,6 +31,7 @@ A modular rapid microservice development framework based on Quarkus, with built-
 | `quarkforge-idempotency` | Idempotency | `@Idempotent` annotation, expression-based idempotency keys, cached result replay, `IdempotentStore` SPI (in-memory default / Redis auto-takeover) |
 | `quarkforge-messaging` | Message pub/sub | `MessageEnvelope` message envelope, `MessagePublisher` SPI, `JsonMessagePublisher` direct object publishing, `@MessageConsumer` + `MessageHandler` consumer abstraction (local in-JVM dispatch by default) |
 | `quarkforge-messaging-rabbitmq` | RabbitMQ | Exchange declaration, routing-key delivery, persistent messages, optional publisher confirms, consumer with durable queues and manual ack/nack |
+| `quarkforge-messaging-kafka` | Kafka | Kafka transport for messaging: topic delivery with messageId as record key, headers/timestamp mapping, per-topic consumer group with manual offset commit |
 | `quarkforge-outbox` | Transactional outbox | Local message table, delayed delivery, exponential-backoff retry on failure, scheduled redelivery |
 | `quarkforge-rpc` | RPC communication | gRPC infrastructure: `BizException` ↔ gRPC status mapping with error-code trailers, traceId propagation interceptors, built-in `Echo` diagnostics service |
 | `quarkforge-scheduler` | Job scheduling | JobRunr integration with in-memory storage (standalone) and SQL storage (distributed), built-in dashboard |
@@ -659,9 +660,9 @@ public Result<OrderVO> createOrder(@RequestBody CreateOrderRequest req) {
 
 The `key` supports `#paramName` and `#p0` index references with chained `.field` access; when left empty, the key is generated from the serialized arguments. The default in-memory store suits single-node deployments; adding `quarkforge-redis` automatically switches to the distributed implementation. If the business method throws, the idempotency key is released immediately so later retries are allowed.
 
-### Messaging (messaging + RabbitMQ)
+### Messaging (messaging + RabbitMQ / Kafka)
 
-No middleware required by default: messages are only written to memory and logged (`LocalMessagePublisher`), so local development works out of the box; adding `quarkforge-messaging-rabbitmq` automatically switches to real delivery.
+No middleware required by default: messages are only written to memory and logged (`LocalMessagePublisher`), so local development works out of the box; adding `quarkforge-messaging-rabbitmq` or `quarkforge-messaging-kafka` automatically switches to real delivery.
 
 ```properties
 quarkforge.messaging.rabbitmq.uri=amqp://guest:guest@localhost:5672/
@@ -677,6 +678,13 @@ publisher.publish("order.created", Map.of("orderNo", orderNo));
 ```
 
 `destination` is used as the routing key; if `exchange` is left empty, the message goes to the default exchange (in which case `destination` is the queue name). Consumers can use Quarkus-native `@Incoming` or a RabbitMQ client directly.
+
+For Kafka, add `quarkforge-messaging-kafka` instead; `destination` becomes the topic and `messageId` the record key (same-key ordering):
+
+```properties
+quarkforge.messaging.kafka.bootstrap-servers=localhost:9092
+quarkforge.messaging.kafka.group-id=order-service
+```
 
 ### Transactional Outbox (outbox)
 

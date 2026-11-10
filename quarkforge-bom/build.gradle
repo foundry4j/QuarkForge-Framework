@@ -30,6 +30,7 @@ dependencies {
     api project(':quarkforge-idempotency')
     api project(':quarkforge-messaging')
     api project(':quarkforge-messaging-rabbitmq')
+    api project(':quarkforge-messaging-kafka')
     api project(':quarkforge-outbox')
     api project(':quarkforge-rpc')
     api project(':quarkforge-scheduler')

@@ -34,6 +34,7 @@ def moduleDescriptions = [
     'quarkforge-idempotency'       : 'Idempotent request handling with result replay',
     'quarkforge-messaging'         : 'Message envelope, publisher SPI and consumer abstraction',
     'quarkforge-messaging-rabbitmq': 'RabbitMQ transport for messaging',
+    'quarkforge-messaging-kafka'   : 'Kafka transport for messaging',
     'quarkforge-outbox'            : 'Transactional outbox with delayed delivery and retries',
     'quarkforge-rpc'               : 'gRPC infrastructure with error mapping and trace propagation',
     'quarkforge-scheduler'         : 'JobRunr based job scheduling',

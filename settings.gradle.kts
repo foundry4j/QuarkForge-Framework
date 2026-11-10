@@ -33,6 +33,7 @@ include(
     "quarkforge-idempotency",
     "quarkforge-messaging",
     "quarkforge-messaging-rabbitmq",
+    "quarkforge-messaging-kafka",
     "quarkforge-outbox",
     "quarkforge-rpc",
     "quarkforge-scheduler",

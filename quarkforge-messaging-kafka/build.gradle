@@ -1,0 +1,6 @@
+// quarkforge-messaging-kafka —— messaging 的 Kafka 传输层
+dependencies {
+    api project(':quarkforge-messaging')
+    api 'io.quarkus:quarkus-vertx'
+    api 'io.vertx:vertx-kafka-client'
+}
