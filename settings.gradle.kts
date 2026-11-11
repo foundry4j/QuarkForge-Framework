@@ -18,6 +18,7 @@ include(
     "quarkforge-bom",
     "quarkforge-core",
     "quarkforge-web",
+    "quarkforge-gateway",
     "quarkforge-validation",
     "quarkforge-data",
     "quarkforge-audit",

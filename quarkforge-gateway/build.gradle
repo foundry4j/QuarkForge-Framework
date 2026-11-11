@@ -1,0 +1,7 @@
+// quarkforge-gateway —— 进程内反向代理网关（最小实现：路由 + 转发 + 超时）
+dependencies {
+    api project(':quarkforge-core')
+    api 'io.quarkus:quarkus-vertx'
+    api 'io.quarkus:quarkus-vertx-http'
+    api 'io.vertx:vertx-web-client'
+}

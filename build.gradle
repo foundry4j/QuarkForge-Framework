@@ -19,6 +19,7 @@ ext {
 def moduleDescriptions = [
     'quarkforge-core'              : 'Unified result body, error codes, paging and snowflake IDs',
     'quarkforge-web'               : 'Global exception mapping, response wrapping and access logging',
+    'quarkforge-gateway'           : 'In-process reverse proxy with declarative routes and timeouts',
     'quarkforge-validation'        : 'Business-oriented Bean Validation annotations',
     'quarkforge-data'              : 'Base entities, repositories, multi-tenant and soft delete support',
     'quarkforge-audit'             : 'Audit logging with field-level diffs',

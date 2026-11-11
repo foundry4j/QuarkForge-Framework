@@ -17,6 +17,7 @@ A modular rapid microservice development framework based on Quarkus, with built-
 | `quarkforge-bom` | Version alignment | Single import that locks the Quarkus platform and all framework module versions |
 | `quarkforge-core` | Infrastructure (pure JDK, no framework dependencies) | `Result` unified response body, `ErrorCode` error codes, `BizException`, `PageResult`, `Checks` validation, `SnowflakeIdGenerator` |
 | `quarkforge-web` | Web layer | Global exception mapping, automatic response wrapping, `@RawResponse` exemption, access log with traceId, `PageQuery` pagination parameters, file upload/download, API versioning |
+| `quarkforge-gateway` | API gateway | In-process reverse proxy with declarative routes, longest-prefix matching, prefix stripping, timeouts, and unified 502/504 `Result` bodies |
 | `quarkforge-validation` | Parameter validation | Business-oriented Bean Validation annotations: `@Phone`, `@IdCard`, `@BankCard`, `@PasswordStrength`, `@EnumValid` |
 | `quarkforge-data` | Data access | `BaseEntity` (snowflake ID + audit timestamps), `BaseRepository` (pagination straight to `PageResult`), `TenantEntity` multi-tenant auto-filtering, `SoftDeleteEntity`/`SoftDeleteRepository` soft delete with recycle bin, `AuditSupport` audit SPI |
 | `quarkforge-audit` | Audit logging | Automatically records create/update/delete operations with field-level diffs on updates (e.g. price 100 → 120), `AuditLog` persistence, operator resolution, `@OperationLog` method-level operation logs |
@@ -236,6 +237,23 @@ After the filter resolves the version, it can be read by injecting `ApiVersionCo
 @Inject ApiVersionContext versionContext;
 String version = versionContext.requested();
 ```
+
+### API Gateway (gateway)
+
+A lightweight in-process gateway: declarative routes forward matching requests to upstream services, with no extra component to deploy.
+
+```properties
+quarkforge.gateway.routes[0].id=order
+quarkforge.gateway.routes[0].path=/api/order
+quarkforge.gateway.routes[0].upstream=http://order-service:8080
+quarkforge.gateway.routes[0].strip-prefix=0
+quarkforge.gateway.routes[0].timeout=3s
+```
+
+- `/api/order/42` → `http://order-service:8080/42`: the matched prefix is removed, and `strip-prefix` removes further leading segments
+- Longest prefix wins; hop-by-hop headers (`Host`, `Connection`, `Content-Length`, ...) are not forwarded
+- Upstream timeout → `504 {"code":50400,...}`; unreachable upstream → `502 {"code":50300,...}`
+- Routes are static (rebuilt on restart); request and response bodies are buffered in memory, so avoid large file transfers through this module
 
 ### Data Access (data)
 

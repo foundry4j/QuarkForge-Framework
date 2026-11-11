@@ -15,6 +15,7 @@ dependencies {
 
     api project(':quarkforge-core')
     api project(':quarkforge-web')
+    api project(':quarkforge-gateway')
     api project(':quarkforge-validation')
     api project(':quarkforge-data')
     api project(':quarkforge-audit')
