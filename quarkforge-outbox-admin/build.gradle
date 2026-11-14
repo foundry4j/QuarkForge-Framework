@@ -1,0 +1,9 @@
+// quarkforge-outbox-admin —— 发件箱管理端点（查询失败消息、手动/批量重放）
+dependencies {
+    api project(':quarkforge-outbox')
+    api project(':quarkforge-web')
+    api project(':quarkforge-security')
+    testImplementation 'io.quarkus:quarkus-jdbc-h2'
+    testImplementation 'io.quarkus:quarkus-test-security'
+    testImplementation 'io.rest-assured:rest-assured'
+}

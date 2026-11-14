@@ -35,6 +35,7 @@ A modular rapid microservice development framework based on Quarkus, with built-
 | `quarkforge-messaging-rabbitmq` | RabbitMQ | Exchange declaration, routing-key delivery, persistent messages, optional publisher confirms, consumer with durable queues and manual ack/nack |
 | `quarkforge-messaging-kafka` | Kafka | Kafka transport for messaging: topic delivery with messageId as record key, headers/timestamp mapping, per-topic consumer group with manual offset commit |
 | `quarkforge-outbox` | Transactional outbox | Local message table, delayed delivery, exponential-backoff retry on failure, scheduled redelivery |
+| `quarkforge-outbox-admin` | Outbox admin | Query failed outbox messages, replay one message, condition-based batch replay (admin role required) |
 | `quarkforge-rpc` | RPC communication | gRPC infrastructure: `BizException` ↔ gRPC status mapping with error-code trailers, traceId propagation interceptors, built-in `Echo` diagnostics service |
 | `quarkforge-scheduler` | Job scheduling | JobRunr integration with in-memory storage (standalone) and SQL storage (distributed), built-in dashboard |
 | `quarkforge-notification` | Notification center | Multi-tenant notification persistence, `NotificationSender` SPI for business modules to decouple from delivery concerns, REST API, and WebSocket real-time push |
@@ -807,6 +808,22 @@ outbox.enqueue("order.close-check", Map.of("orderNo", orderNo), Duration.ofMinut
 ```
 
 A background job scans the local message table every 5 seconds for redelivery; failures back off exponentially as `30s → 60s → 120s …` and are marked `FAILED` after 5 attempts. In multi-instance deployments, messages are claimed via conditional updates, so each message is delivered by exactly one instance. For plain scheduled tasks, use Quarkus `@Scheduled` directly.
+
+#### Admin endpoints (outbox-admin)
+
+`quarkforge-outbox-admin` adds management endpoints (requires the `admin` role) for messages that ended up `FAILED`:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/outbox/admin/messages?status=FAILED&destination=order.created&page=1&size=20` | Query messages, defaulting to `FAILED` |
+| `POST` | `/outbox/admin/messages/{id}/replay` | Replay one failed message |
+| `POST` | `/outbox/admin/messages/replay` | Replay failed messages matching a condition |
+
+```json
+{"destination": "order.created", "before": "2026-01-01T00:00:00Z", "limit": 100}
+```
+
+Replay resets `status=PENDING`, `attempts=0` and clears `lastError`; actual delivery is then handled by the dispatcher. The batch limit defaults to 200 and is capped at 1000.
 
 ### RPC (rpc)
 

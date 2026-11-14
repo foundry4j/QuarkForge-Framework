@@ -37,6 +37,7 @@ include(
     "quarkforge-messaging-rabbitmq",
     "quarkforge-messaging-kafka",
     "quarkforge-outbox",
+    "quarkforge-outbox-admin",
     "quarkforge-rpc",
     "quarkforge-scheduler",
     "quarkforge-notification",
