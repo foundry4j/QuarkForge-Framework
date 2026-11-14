@@ -619,6 +619,34 @@ mp.jwt.verify.publickey.location=jwt/publicKey.pem
 mp.jwt.verify.issuer=quarkforge
 ```
 
+#### RS256 + JWKS key rotation
+
+For asymmetric signing with `kid`-based rotation, configure a key ring instead of a single key. The active key signs new tokens; all configured public keys are published as a JWK Set at `/.well-known/jwks.json` (served by `quarkforge-auth`):
+
+```properties
+quarkforge.jwt.signing.active-kid=rsa-2026-11
+
+quarkforge.jwt.signing.keys[0].id=rsa-2026-11
+quarkforge.jwt.signing.keys[0].algorithm=RS256
+quarkforge.jwt.signing.keys[0].private-key-location=classpath:keys/rsa-2026-11.pem
+quarkforge.jwt.signing.keys[0].public-key-location=classpath:keys/rsa-2026-11.pub.pem
+
+# keep the previous key for tokens that are still valid
+quarkforge.jwt.signing.keys[1].id=rsa-2026-05
+quarkforge.jwt.signing.keys[1].private-key-location=classpath:keys/rsa-2026-05.pem
+quarkforge.jwt.signing.keys[1].public-key-location=classpath:keys/rsa-2026-05.pub.pem
+```
+
+Resource servers verify tokens by fetching that endpoint:
+
+```properties
+mp.jwt.verify.publickey.location=http://auth-service/.well-known/jwks.json
+mp.jwt.verify.publickey.algorithm=RS256
+mp.jwt.verify.issuer=quarkforge
+```
+
+Rotation steps: add the new key and switch `active-kid`, restart/roll out, keep the old key configured until its tokens expire, then remove it. `RS256/384/512`, `PS*` and `ES*` algorithms are supported; symmetric algorithms keep using `smallrye.jwt.sign.key`.
+
 #### RBAC Authorization (@RequiresRole / @RequiresPermission)
 
 Declare role/permission requirements on resource classes or methods; the framework validates them before the method runs:

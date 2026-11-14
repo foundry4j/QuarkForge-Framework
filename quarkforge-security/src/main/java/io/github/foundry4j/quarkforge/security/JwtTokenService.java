@@ -3,6 +3,7 @@ package io.github.foundry4j.quarkforge.security;
 import io.smallrye.jwt.build.Jwt;
 import io.smallrye.jwt.build.JwtClaimsBuilder;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.Instant;
@@ -12,7 +13,8 @@ import java.util.Set;
 import java.util.UUID;
 
 /// ## JwtTokenService
-/// JWT 签发服务。签名密钥等配置沿用 SmallRye JWT 标准配置项：
+/// JWT 签发服务。签名密钥优先使用框架的密钥环配置（支持 RS256/JWKS + `kid` 轮换，
+/// 见 [JwtSigningConfig]），未配置时沿用 SmallRye JWT 标准配置项：
 ///
 /// ```properties
 /// # 签发密钥：PEM 私钥或 JWK（HS256 用 oct JWK），也可用 smallrye.jwt.sign.key-location 指向文件
@@ -20,6 +22,20 @@ import java.util.UUID;
 /// # 验签密钥：对称算法使用同一份内容，非对称算法配置公钥
 /// smallrye.jwt.verify.key=${JWT_SIGN_KEY}
 /// mp.jwt.verify.issuer=quarkforge
+/// ```
+///
+/// 非对称 + `kid` 轮换：
+///
+/// ```properties
+/// quarkforge.jwt.signing.active-kid=rsa-2026-11
+/// quarkforge.jwt.signing.keys[0].id=rsa-2026-11
+/// quarkforge.jwt.signing.keys[0].algorithm=RS256
+/// quarkforge.jwt.signing.keys[0].private-key-location=classpath:keys/rsa-2026-11.pem
+/// quarkforge.jwt.signing.keys[0].public-key-location=classpath:keys/rsa-2026-11.pub.pem
+///
+/// # 验签端按 JWKS 中的 kid 选公钥
+/// mp.jwt.verify.publickey.location=http://auth-service/.well-known/jwks.json
+/// mp.jwt.verify.publickey.algorithm=RS256
 /// ```
 ///
 /// 框架扩展配置：
@@ -39,6 +55,10 @@ public class JwtTokenService {
 
     @ConfigProperty(name = "quarkforge.jwt.ttl-minutes", defaultValue = "120")
     long ttlMinutes;
+
+    /// 非对称密钥环；未配置 `quarkforge.jwt.signing.keys` 时为空实现，走 SmallRye 默认签名。
+    @Inject
+    JwtKeyRing keyRing;
 
     /// 签发令牌，`subject` 作为用户 ID（sub claim），`username` 写入 upn claim。
     public String issue(String subject, String username, Set<String> roles) {
@@ -71,6 +91,19 @@ public class JwtTokenService {
                 .issuedAt(now.getEpochSecond())
                 .expiresAt(now.plus(ttlMinutes, ChronoUnit.MINUTES).getEpochSecond());
         extraClaims.forEach(builder::claim);
-        return builder.sign();
+        return sign(builder);
+    }
+
+    /// 优先使用密钥环中的活动私钥并写入 `kid`，便于验签端按 kid 选公钥；
+    /// 未配置非对称密钥时使用 SmallRye 的 `smallrye.jwt.sign.key`。
+    private String sign(JwtClaimsBuilder builder) {
+        JwtKeyRing.SigningKey key = keyRing == null ? null : keyRing.active();
+        if (key == null) {
+            return builder.sign();
+        }
+        return builder.jws()
+                .keyId(key.kid())
+                .algorithm(key.algorithm())
+                .sign(key.privateKey());
     }
 }

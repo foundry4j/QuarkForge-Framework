@@ -36,6 +36,12 @@ class AuthResourceTest {
     }
 
     @Test
+    void jwksIsUnavailableWithoutConfiguredKeys() {
+        given().when().get("/.well-known/jwks.json")
+                .then().statusCode(404);
+    }
+
+    @Test
     void refreshAndLogout() {
         String refreshToken = given().contentType("application/json")
                 .body(Map.of("username", "alice", "password", "secret"))
