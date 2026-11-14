@@ -8,8 +8,10 @@ import io.github.foundry4j.quarkforge.auth.password.PasswordEncoder;
 import io.github.foundry4j.quarkforge.core.api.CommonErrorCode;
 import io.github.foundry4j.quarkforge.core.exception.BizException;
 import io.github.foundry4j.quarkforge.security.JwtTokenService;
+import io.github.foundry4j.quarkforge.security.SecurityAuditEvent;
 import io.github.foundry4j.quarkforge.security.TokenBlacklist;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Event;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -56,6 +58,9 @@ public class AuthService {
     TokenBlacklist tokenBlacklist;
 
     @Inject
+    Event<SecurityAuditEvent> auditEvents;
+
+    @Inject
     Instance<UserAccountProvider> providers;
 
     @ConfigProperty(name = "quarkforge.auth.refresh-token.ttl-days", defaultValue = "30")
@@ -64,21 +69,28 @@ public class AuthService {
     @ConfigProperty(name = "quarkforge.jwt.ttl-minutes", defaultValue = "120")
     long accessTtlMinutes;
 
-    /// 用户名密码登录，成功返回新的访问令牌与刷新令牌。
+    /// 用户名密码登录，成功返回新的访问令牌与刷新令牌；成功与失败都会发布安全审计事件。
     @Transactional
     public TokenPair login(String username, String password) {
-        if (username == null || username.isBlank() || password == null || password.isEmpty()) {
-            throw new BizException(CommonErrorCode.PARAM_ERROR, "用户名和密码不能为空");
+        try {
+            if (username == null || username.isBlank() || password == null || password.isEmpty()) {
+                throw new BizException(CommonErrorCode.PARAM_ERROR, "用户名和密码不能为空");
+            }
+            UserAccount account = accounts().findByUsername(username)
+                    .orElseThrow(this::badCredentials);
+            if (!passwordEncoder.matches(password, account.encodedPassword())) {
+                throw badCredentials();
+            }
+            if (!account.enabled()) {
+                throw new BizException(CommonErrorCode.UNAUTHORIZED, "账号已禁用");
+            }
+            TokenPair pair = issue(account);
+            auditEvents.fire(SecurityAuditEvent.loginSuccess(account.id(), account.username()));
+            return pair;
+        } catch (BizException e) {
+            auditEvents.fire(SecurityAuditEvent.loginFailure(username, e.getMessage()));
+            throw e;
         }
-        UserAccount account = accounts().findByUsername(username)
-                .orElseThrow(this::badCredentials);
-        if (!passwordEncoder.matches(password, account.encodedPassword())) {
-            throw badCredentials();
-        }
-        if (!account.enabled()) {
-            throw new BizException(CommonErrorCode.UNAUTHORIZED, "账号已禁用");
-        }
-        return issue(account);
     }
 
     /// 使用刷新令牌换取新的令牌对，旧刷新令牌立即失效。
@@ -120,15 +132,26 @@ public class AuthService {
     /// 未携带访问令牌时只吊销刷新令牌。
     @Transactional
     public void logout(String refreshToken, String accessTokenJti, Instant accessTokenExpiresAt) {
+        String userId = null;
+        boolean revoked = false;
         if (refreshToken != null && !refreshToken.isBlank()) {
-            tokens.findByHash(hash(refreshToken)).ifPresent(token -> {
+            RefreshToken token = tokens.findByHash(hash(refreshToken)).orElse(null);
+            if (token != null) {
+                userId = token.userId;
                 if (token.revokedAt == null) {
                     token.revokedAt = Instant.now();
                     token.persist();
+                    revoked = true;
                 }
-            });
+            }
         }
-        tokenBlacklist.revoke(accessTokenJti, accessTokenExpiresAt);
+        if (accessTokenJti != null && accessTokenExpiresAt != null) {
+            tokenBlacklist.revoke(accessTokenJti, accessTokenExpiresAt);
+            revoked = true;
+        }
+        if (revoked) {
+            auditEvents.fire(SecurityAuditEvent.logout(userId));
+        }
     }
 
     /// 吊销指定用户的全部令牌，用于改密、封号等需要立即失效的场景：
@@ -138,6 +161,7 @@ public class AuthService {
         Instant now = Instant.now();
         tokenBlacklist.revokeIssuedBefore(userId, now);
         tokens.revokeAll(userId, now);
+        auditEvents.fire(SecurityAuditEvent.tokenRevoked(userId, "改密/封号后批量吊销"));
     }
 
     /// 签发访问令牌并落库一条刷新令牌记录。

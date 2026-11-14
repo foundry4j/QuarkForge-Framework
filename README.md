@@ -20,7 +20,7 @@ A modular rapid microservice development framework based on Quarkus, with built-
 | `quarkforge-gateway` | API gateway | In-process reverse proxy with declarative routes, longest-prefix matching, prefix stripping, timeouts, and unified 502/504 `Result` bodies |
 | `quarkforge-validation` | Parameter validation | Business-oriented Bean Validation annotations: `@Phone`, `@IdCard`, `@BankCard`, `@PasswordStrength`, `@EnumValid` |
 | `quarkforge-data` | Data access | `BaseEntity` (snowflake ID + audit timestamps), `BaseRepository` (pagination straight to `PageResult`), `TenantEntity` multi-tenant auto-filtering, `SoftDeleteEntity`/`SoftDeleteRepository` soft delete with recycle bin, `AuditSupport` audit SPI |
-| `quarkforge-audit` | Audit logging | Automatically records create/update/delete operations with field-level diffs on updates (e.g. price 100 → 120), `AuditLog` persistence, operator resolution, `@OperationLog` method-level operation logs |
+| `quarkforge-audit` | Audit logging | Automatically records create/update/delete operations with field-level diffs on updates (e.g. price 100 → 120), `AuditLog` persistence, operator resolution, security events (login success/failure, logout, token revocation, access denied), `@OperationLog` method-level operation logs |
 | `quarkforge-crypto` | Encryption & masking | AES-256-GCM `CryptoService`, `EncryptedStringConverter` field encryption, `@Sensitive` response masking (`138****0000`) |
 | `quarkforge-cache` | Local cache | `CacheService` SPI, Caffeine default implementation, `@Cacheable`/`@CacheEvict` annotations, `@CacheWarmup` startup preloading, built-in Bloom-filter penetration guard and single-flight breakdown guard |
 | `quarkforge-dict` | Dictionary & metadata | Multi-tenant dict types/items, cached lookups, value→label translation, hierarchical dictionaries via `parentValue` |
@@ -313,6 +313,20 @@ List<AuditLog> logs = auditLogRepository.findByEntity(Order.class.getName(), ord
 - The operator is resolved from `ActorContext` first, then the current `SecurityIdentity`, and finally `system`
 - Audit records are persisted in the same transaction as business data; both roll back together
 - `@NotAudited` skips specified entities; JPQL / native bulk updates do not trigger lifecycle callbacks and are therefore not audited
+
+#### Security Events
+
+`quarkforge-security` and `quarkforge-auth` publish `SecurityAuditEvent`s; `quarkforge-audit` persists them with `entity_type=SECURITY`:
+
+| Action | When |
+|--------|------|
+| `LOGIN_SUCCESS` | password login succeeded |
+| `LOGIN_FAILURE` | wrong password, disabled account, unknown user, blank credentials |
+| `LOGOUT` | logout revoked the refresh token and/or access token `jti` |
+| `TOKEN_REVOKED` | `AuthService.revokeAllTokens(userId)` after a password change or account ban |
+| `ACCESS_DENIED` | `@RequiresRole` / `@RequiresPermission` check failed (403) |
+
+Security audits are written in an independent transaction, so a login failure or a rolled-back request still leaves an audit record. Without `quarkforge-audit` the events simply have no observer.
 
 #### Operation Log
 

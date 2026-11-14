@@ -8,6 +8,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.jwt.JsonWebToken;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -34,6 +35,14 @@ class RbacInterceptorTest {
 
     @Inject
     StaffService staff;
+
+    @Inject
+    SecurityAuditCollector auditor;
+
+    @BeforeEach
+    void clearAuditEvents() {
+        SecurityAuditCollector.clear();
+    }
 
     // ---------- 被测 Bean ----------
 
@@ -175,6 +184,30 @@ class RbacInterceptorTest {
         // 两者都满足 → 放行
         authenticate(Set.of("staff"), List.of("report:view"));
         assertEquals("report", staff.report());
+    }
+
+    // ---------- 安全审计 ----------
+
+    @Test
+    void deniedRoleEmitsSecurityAuditEvent() {
+        authenticate(Set.of("user"), List.of());
+        assertThrows(BizException.class, () -> demo.adminOnly());
+
+        assertTrue(SecurityAuditCollector.events().stream().anyMatch(event ->
+                SecurityAuditEvent.ACCESS_DENIED.equals(event.action())
+                        && "tom".equals(event.actor())
+                        && event.target().contains("DemoService#adminOnly")
+                        && event.detail().contains("admin")));
+    }
+
+    @Test
+    void deniedPermissionEmitsSecurityAuditEvent() {
+        authenticate(Set.of(), List.of("user:create"));
+        assertThrows(BizException.class, () -> demo.createAndDelete());
+
+        assertTrue(SecurityAuditCollector.events().stream().anyMatch(event ->
+                SecurityAuditEvent.ACCESS_DENIED.equals(event.action())
+                        && event.detail().contains("user:delete")));
     }
 
     // ---------- 身份模拟 ----------

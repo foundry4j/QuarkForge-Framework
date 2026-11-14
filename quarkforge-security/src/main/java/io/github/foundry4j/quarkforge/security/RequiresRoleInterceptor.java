@@ -1,6 +1,8 @@
 package io.github.foundry4j.quarkforge.security;
 
+import io.github.foundry4j.quarkforge.core.exception.BizException;
 import jakarta.annotation.Priority;
+import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 import jakarta.interceptor.AroundInvoke;
 import jakarta.interceptor.Interceptor;
@@ -21,6 +23,9 @@ public class RequiresRoleInterceptor {
     @Inject
     AuthContext authContext;
 
+    @Inject
+    Event<SecurityAuditEvent> auditEvents;
+
     @AroundInvoke
     Object check(InvocationContext ctx) throws Exception {
         RequiresRole rule = RbacSupport.resolve(ctx.getMethod(), RequiresRole.class);
@@ -28,7 +33,13 @@ public class RequiresRoleInterceptor {
             return ctx.proceed();
         }
         LoginUser user = authContext.currentUser();
-        RbacSupport.require(user.roles(), rule.value(), rule.logical(), "角色");
+        try {
+            RbacSupport.require(user.roles(), rule.value(), rule.logical(), "角色");
+        } catch (BizException e) {
+            auditEvents.fire(SecurityAuditEvent.accessDenied(user, ctx.getMethod(),
+                    "缺少角色: " + String.join(",", rule.value())));
+            throw e;
+        }
         return ctx.proceed();
     }
 }

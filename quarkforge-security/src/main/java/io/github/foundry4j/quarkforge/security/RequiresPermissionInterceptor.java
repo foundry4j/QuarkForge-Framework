@@ -1,6 +1,8 @@
 package io.github.foundry4j.quarkforge.security;
 
+import io.github.foundry4j.quarkforge.core.exception.BizException;
 import jakarta.annotation.Priority;
+import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 import jakarta.interceptor.AroundInvoke;
 import jakarta.interceptor.Interceptor;
@@ -17,6 +19,9 @@ public class RequiresPermissionInterceptor {
     @Inject
     AuthContext authContext;
 
+    @Inject
+    Event<SecurityAuditEvent> auditEvents;
+
     @AroundInvoke
     Object check(InvocationContext ctx) throws Exception {
         RequiresPermission rule = RbacSupport.resolve(ctx.getMethod(), RequiresPermission.class);
@@ -24,7 +29,13 @@ public class RequiresPermissionInterceptor {
             return ctx.proceed();
         }
         LoginUser user = authContext.currentUser();
-        RbacSupport.require(user.permissions(), rule.value(), rule.logical(), "权限");
+        try {
+            RbacSupport.require(user.permissions(), rule.value(), rule.logical(), "权限");
+        } catch (BizException e) {
+            auditEvents.fire(SecurityAuditEvent.accessDenied(user, ctx.getMethod(),
+                    "缺少权限: " + String.join(",", rule.value())));
+            throw e;
+        }
         return ctx.proceed();
     }
 }
