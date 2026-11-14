@@ -1,19 +1,26 @@
 package io.github.foundry4j.quarkforge.auth;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.foundry4j.quarkforge.auth.entity.RefreshTokenRepository;
 import io.github.foundry4j.quarkforge.auth.service.AuthService;
 import io.github.foundry4j.quarkforge.core.api.CommonErrorCode;
 import io.github.foundry4j.quarkforge.core.exception.BizException;
+import io.github.foundry4j.quarkforge.security.TokenBlacklist;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
+import java.util.Base64;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /// ## AuthServiceTest
 /// 登录、刷新轮换、复用检测与注销的端到端验证（H2 内存库）。
@@ -25,6 +32,9 @@ class AuthServiceTest {
 
     @Inject
     RefreshTokenRepository tokens;
+
+    @Inject
+    TokenBlacklist tokenBlacklist;
 
     @BeforeEach
     @Transactional
@@ -105,5 +115,33 @@ class AuthServiceTest {
     void logoutIsIdempotentForUnknownToken() {
         service.logout("unknown");
         service.logout(null);
+    }
+
+    @Test
+    void logoutBlacklistsAccessTokenJti() throws Exception {
+        AuthService.TokenPair pair = service.login("alice", "secret");
+        JsonNode claims = claims(pair.accessToken());
+
+        service.logout(pair.refreshToken(), claims.get("jti").asText(),
+                Instant.ofEpochSecond(claims.get("exp").asLong()));
+
+        assertTrue(tokenBlacklist.isRevoked(claims.get("jti").asText()));
+    }
+
+    @Test
+    void revokeAllTokensInvalidatesExistingTokens() throws Exception {
+        AuthService.TokenPair pair = service.login("alice", "secret");
+        Instant issuedAt = Instant.ofEpochSecond(claims(pair.accessToken()).get("iat").asLong());
+
+        service.revokeAllTokens("1");
+
+        assertTrue(tokenBlacklist.isUserRevoked("1", issuedAt));
+        assertThrows(BizException.class, () -> service.refresh(pair.refreshToken()));
+    }
+
+    /// 直接解析 JWT payload（测试无需校验签名）。
+    private static JsonNode claims(String token) throws Exception {
+        String payload = token.split("\\.")[1];
+        return new ObjectMapper().readTree(Base64.getUrlDecoder().decode(payload));
     }
 }

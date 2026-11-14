@@ -3,6 +3,7 @@ dependencies {
     api project(':quarkforge-cache')
     api project(':quarkforge-ratelimit')
     api project(':quarkforge-idempotency')
+    api project(':quarkforge-security')
     api 'io.quarkus:quarkus-redis-client'
     api 'io.quarkus:quarkus-jackson'
     testImplementation 'io.quarkus:quarkus-junit-mockito'

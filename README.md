@@ -26,7 +26,7 @@ A modular rapid microservice development framework based on Quarkus, with built-
 | `quarkforge-dict` | Dictionary & metadata | Multi-tenant dict types/items, cached lookups, value→label translation, hierarchical dictionaries via `parentValue` |
 | `quarkforge-excel` | Excel / CSV import & export | Streaming xlsx/CSV reading, row-level validation with error rows, SXSSF streaming export, REST upload/download helpers |
 | `quarkforge-migration` | Database migration | Flyway starter that automatically runs versioned scripts under `db/migration` at application startup |
-| `quarkforge-security` | Security & authentication | `JwtTokenService` token issuance (roles + `perms` permission claims), `AuthContext` current-user resolution, `@RequiresRole`/`@RequiresPermission` RBAC annotations with ANY/ALL semantics, `LoginUser` |
+| `quarkforge-security` | Security & authentication | `JwtTokenService` token issuance (jti, roles + `perms` permission claims), `TokenBlacklist` SPI (jti and user-level revocation enforced by a security identity augmentor), `AuthContext` current-user resolution, `@RequiresRole`/`@RequiresPermission` RBAC annotations with ANY/ALL semantics, `LoginUser` |
 | `quarkforge-auth` | Password login | `PasswordEncoder` (BCrypt default / Argon2 optional), login, rotating refresh tokens stored as SHA-256 hashes, refresh/logout endpoints |
 | `quarkforge-ratelimit` | Rate limiting | `@RateLimit` annotation, in-memory fixed-window default implementation, `RateLimiter` SPI |
 | `quarkforge-degrade` | Fault tolerance | SmallRye FT `@Retry`/`@CircuitBreaker`/`@Timeout`/`@Bulkhead`/`@Fallback`, circuit-open/timeout/bulkhead exceptions mapped to unified `Result` (503/504) |
@@ -38,7 +38,7 @@ A modular rapid microservice development framework based on Quarkus, with built-
 | `quarkforge-rpc` | RPC communication | gRPC infrastructure: `BizException` ↔ gRPC status mapping with error-code trailers, traceId propagation interceptors, built-in `Echo` diagnostics service |
 | `quarkforge-scheduler` | Job scheduling | JobRunr integration with in-memory storage (standalone) and SQL storage (distributed), built-in dashboard |
 | `quarkforge-notification` | Notification center | Multi-tenant notification persistence, `NotificationSender` SPI for business modules to decouple from delivery concerns, REST API, and WebSocket real-time push |
-| `quarkforge-redis` | Redis integration | `RedisCacheService` cache-aside, `RedisTwoLevelCacheService` local + Redis two-level cache, `RedisLockService` distributed locks with `@DistributedLock` annotation (SpEL keys, wait/retry, lease), Redis backends for rate limiting and idempotency (auto-takeover) |
+| `quarkforge-redis` | Redis integration | `RedisCacheService` cache-aside, `RedisTwoLevelCacheService` local + Redis two-level cache, `RedisLockService` distributed locks with `@DistributedLock` annotation (SpEL keys, wait/retry, lease), Redis backends for rate limiting, idempotency and token blacklisting (auto-takeover) |
 | `quarkforge-observability` | Observability | OpenAPI/Swagger UI (built-in bearerAuth scheme), `/q/health` health checks, `/q/metrics` Prometheus metrics |
 | `quarkforge-test` | Test utilities | `TestAuth` SecurityIdentity mocking (roles/permissions aligned with `AuthContext`), `@CleanDatabase` JUnit 5 extension wiping all JPA entities before each test |
 
@@ -682,6 +682,8 @@ smallrye.jwt.sign.key={"kty":"oct","k":"...","alg":"HS256"}   # PEM or JWK
 
 - Only the SHA-256 hash of a refresh token is stored; the plaintext value is returned once in the login/refresh response
 - Every refresh rotates the token and revokes the old one; reusing an already revoked token is treated as leakage and revokes all tokens of that user
+- Logout revokes the refresh token and blacklists the current access token's `jti`, so the access token stops working immediately
+- `AuthService.revokeAllTokens(userId)` invalidates every access token issued before the call and revokes all refresh tokens; call it after password changes or account bans
 - Passwords are verified by hash prefix, so switching the default algorithm keeps existing BCrypt passwords working
 - BCrypt works out of the box; Argon2 requires adding `org.bouncycastle:bcprov-jdk18on` to the application
 

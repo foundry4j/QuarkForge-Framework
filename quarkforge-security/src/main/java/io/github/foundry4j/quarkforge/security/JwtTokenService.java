@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /// ## JwtTokenService
 /// JWT 签发服务。签名密钥等配置沿用 SmallRye JWT 标准配置项：
@@ -64,6 +65,7 @@ public class JwtTokenService {
         JwtClaimsBuilder builder = Jwt.issuer(issuer)
                 .subject(subject)
                 .upn(username)
+                .claim("jti", UUID.randomUUID().toString())
                 .groups(roles == null ? Set.of() : roles)
                 .claim(PERMISSIONS_CLAIM, permissions == null ? Set.of() : permissions)
                 .issuedAt(now.getEpochSecond())

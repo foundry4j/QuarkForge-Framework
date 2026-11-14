@@ -8,6 +8,7 @@ import io.github.foundry4j.quarkforge.auth.password.PasswordEncoder;
 import io.github.foundry4j.quarkforge.core.api.CommonErrorCode;
 import io.github.foundry4j.quarkforge.core.exception.BizException;
 import io.github.foundry4j.quarkforge.security.JwtTokenService;
+import io.github.foundry4j.quarkforge.security.TokenBlacklist;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
@@ -50,6 +51,9 @@ public class AuthService {
 
     @Inject
     PasswordEncoder passwordEncoder;
+
+    @Inject
+    TokenBlacklist tokenBlacklist;
 
     @Inject
     Instance<UserAccountProvider> providers;
@@ -109,15 +113,31 @@ public class AuthService {
     /// 注销：吊销给定的刷新令牌，未知令牌视为已注销。
     @Transactional
     public void logout(String refreshToken) {
-        if (refreshToken == null || refreshToken.isBlank()) {
-            return;
+        logout(refreshToken, null, null);
+    }
+
+    /// 注销并吊销当前访问令牌：`jti` 与过期时间来自请求携带的 JWT，
+    /// 未携带访问令牌时只吊销刷新令牌。
+    @Transactional
+    public void logout(String refreshToken, String accessTokenJti, Instant accessTokenExpiresAt) {
+        if (refreshToken != null && !refreshToken.isBlank()) {
+            tokens.findByHash(hash(refreshToken)).ifPresent(token -> {
+                if (token.revokedAt == null) {
+                    token.revokedAt = Instant.now();
+                    token.persist();
+                }
+            });
         }
-        tokens.findByHash(hash(refreshToken)).ifPresent(token -> {
-            if (token.revokedAt == null) {
-                token.revokedAt = Instant.now();
-                token.persist();
-            }
-        });
+        tokenBlacklist.revoke(accessTokenJti, accessTokenExpiresAt);
+    }
+
+    /// 吊销指定用户的全部令牌，用于改密、封号等需要立即失效的场景：
+    /// 访问令牌按“签发时间早于当前时刻”批量失效，刷新令牌直接从库中吊销。
+    @Transactional
+    public void revokeAllTokens(String userId) {
+        Instant now = Instant.now();
+        tokenBlacklist.revokeIssuedBefore(userId, now);
+        tokens.revokeAll(userId, now);
     }
 
     /// 签发访问令牌并落库一条刷新令牌记录。

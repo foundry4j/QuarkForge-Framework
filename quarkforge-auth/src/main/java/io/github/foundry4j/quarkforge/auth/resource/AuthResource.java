@@ -2,6 +2,7 @@ package io.github.foundry4j.quarkforge.auth.resource;
 
 import io.github.foundry4j.quarkforge.auth.service.AuthService;
 import io.github.foundry4j.quarkforge.core.api.Result;
+import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
@@ -9,6 +10,9 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import org.eclipse.microprofile.jwt.JsonWebToken;
+
+import java.time.Instant;
 
 /// ## AuthResource
 /// 登录相关 REST 端点：
@@ -29,6 +33,9 @@ public class AuthResource {
     @Inject
     AuthService service;
 
+    @Inject
+    SecurityIdentity identity;
+
     @POST
     @Path("/login")
     public Result<TokenResponse> login(LoginRequest request) {
@@ -46,7 +53,11 @@ public class AuthResource {
     @POST
     @Path("/logout")
     public Result<Void> logout(LogoutRequest request) {
-        service.logout(request.refreshToken());
+        JsonWebToken jwt = identity.getPrincipal() instanceof JsonWebToken token ? token : null;
+        String jti = jwt == null ? null : jwt.getTokenID();
+        Instant expiresAt = jwt == null || jwt.getExpirationTime() <= 0
+                ? null : Instant.ofEpochSecond(jwt.getExpirationTime());
+        service.logout(request.refreshToken(), jti, expiresAt);
         return Result.ok();
     }
 
