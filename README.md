@@ -28,7 +28,7 @@ A modular rapid microservice development framework based on Quarkus, with built-
 | `quarkforge-migration` | Database migration | Flyway starter that automatically runs versioned scripts under `db/migration` at application startup |
 | `quarkforge-security` | Security & authentication | `JwtTokenService` token issuance (jti, roles + `perms` permission claims), `TokenBlacklist` SPI (jti and user-level revocation enforced by a security identity augmentor), `AuthContext` current-user resolution, `@RequiresRole`/`@RequiresPermission` RBAC annotations with ANY/ALL semantics, `LoginUser` |
 | `quarkforge-auth` | Password login | `PasswordEncoder` (BCrypt default / Argon2 optional), login, rotating refresh tokens stored as SHA-256 hashes, refresh/logout endpoints |
-| `quarkforge-ratelimit` | Rate limiting | `@RateLimit` annotation, in-memory fixed-window default implementation, `RateLimiter` SPI |
+| `quarkforge-ratelimit` | Rate limiting | `@RateLimit` annotation, fixed-window / sliding-window / token-bucket algorithms, `X-RateLimit-*` and `Retry-After` response headers, in-memory default with Redis distributed override, `RateLimiter` SPI |
 | `quarkforge-degrade` | Fault tolerance | SmallRye FT `@Retry`/`@CircuitBreaker`/`@Timeout`/`@Bulkhead`/`@Fallback`, circuit-open/timeout/bulkhead exceptions mapped to unified `Result` (503/504) |
 | `quarkforge-idempotency` | Idempotency | `@Idempotent` annotation, expression-based idempotency keys, cached result replay, `IdempotentStore` SPI (in-memory default / Redis auto-takeover) |
 | `quarkforge-messaging` | Message pub/sub | `MessageEnvelope` message envelope, `MessagePublisher` SPI, `JsonMessagePublisher` direct object publishing, `@MessageConsumer` + `MessageHandler` consumer abstraction (local in-JVM dispatch by default) |
@@ -733,11 +733,18 @@ smallrye.jwt.sign.key={"kty":"oct","k":"...","alg":"HS256"}   # PEM or JWK
 
 ```java
 @POST
-@RateLimit(permits = 5, windowSeconds = 60, key = KeyStrategy.USER)
+@RateLimit(permits = 5, windowSeconds = 60, key = KeyStrategy.USER,
+        algorithm = RateLimitAlgorithm.SLIDING_WINDOW)
 public Result<Void> sendSmsCode() { ... }
 ```
 
-Supports three dimensions: `USER` / `IP` / `GLOBAL`; excess requests get HTTP 429. The default in-memory implementation suits single-node deployments; adding `quarkforge-redis` automatically switches to Redis-based distributed rate limiting.
+Supports three dimensions: `USER` / `IP` / `GLOBAL`, and three algorithms:
+
+- `FIXED_WINDOW` (default) — cheapest, but traffic can spike at window boundaries;
+- `SLIDING_WINDOW` — weights the previous window by elapsed time, smoothing boundary bursts;
+- `TOKEN_BUCKET` — refills `permits` tokens per window, allowing controlled bursts.
+
+Excess requests get HTTP 429. Every limited call returns `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`; rejected calls additionally return `Retry-After`. The default in-memory implementation suits single-node deployments; adding `quarkforge-redis` automatically switches to Redis-based distributed rate limiting (token bucket uses an atomic Lua script).
 
 ### Idempotency (idempotency)
 

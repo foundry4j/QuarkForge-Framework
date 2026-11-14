@@ -1,15 +1,15 @@
 package io.github.foundry4j.quarkforge.ratelimit;
 
-import java.lang.reflect.Method;
-
+import io.github.foundry4j.quarkforge.core.exception.RateLimitException;
+import io.quarkus.security.identity.SecurityIdentity;
+import io.vertx.core.http.HttpServerRequest;
 import jakarta.annotation.Priority;
 import jakarta.inject.Inject;
 import jakarta.interceptor.AroundInvoke;
 import jakarta.interceptor.Interceptor;
 import jakarta.interceptor.InvocationContext;
-import io.github.foundry4j.quarkforge.core.exception.RateLimitException;
-import io.quarkus.security.identity.SecurityIdentity;
-import io.vertx.core.http.HttpServerRequest;
+
+import java.lang.reflect.Method;
 
 /// ## RateLimitInterceptor
 /// [RateLimit] 注解的拦截器实现。限流键格式：
@@ -32,7 +32,10 @@ public class RateLimitInterceptor {
     Object aroundInvoke(InvocationContext context) throws Exception {
         RateLimit rateLimit = resolveBinding(context);
         String key = buildKey(rateLimit, context.getMethod());
-        if (!rateLimiter.tryAcquire(key, rateLimit.permits(), rateLimit.windowSeconds())) {
+        RateLimitResult result = rateLimiter.tryAcquire(
+                key, rateLimit.permits(), rateLimit.windowSeconds(), rateLimit.algorithm());
+        RateLimitHeaders.apply(request == null ? null : request.response(), result);
+        if (!result.allowed()) {
             throw new RateLimitException();
         }
         return context.proceed();
