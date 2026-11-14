@@ -45,6 +45,14 @@ public final class ResourceBundleMessageSource implements MessageSource {
                 return new PropertyResourceBundle(reader);
             }
         }
+
+        /// 禁止回退到 JVM 默认语言：否则同一份配置在中文开发机与英文 CI 上
+        /// 会解析出不同语言（CI 上 `zh_CN` 会拿到 `_en` 文案）。
+        /// 候选语言都缺失时按标准候选链回退到无后缀的基础文案文件。
+        @Override
+        public Locale getFallbackLocale(String baseName, Locale locale) {
+            return null;
+        }
     };
 
     private final String baseName;
