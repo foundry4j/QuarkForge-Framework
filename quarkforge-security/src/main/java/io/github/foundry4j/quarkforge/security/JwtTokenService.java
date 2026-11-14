@@ -14,9 +14,9 @@ import java.util.Set;
 /// JWT 签发服务。签名密钥等配置沿用 SmallRye JWT 标准配置项：
 ///
 /// ```properties
-/// # HS256 对称密钥（至少 32 字节），或改为 smallrye.jwt.sign.key-location 使用密钥文件
+/// # 签发密钥：PEM 私钥或 JWK（HS256 用 oct JWK），也可用 smallrye.jwt.sign.key-location 指向文件
 /// smallrye.jwt.sign.key=${JWT_SIGN_KEY}
-/// # 验签配置（与签名密钥保持一致）
+/// # 验签密钥：对称算法使用同一份内容，非对称算法配置公钥
 /// smallrye.jwt.verify.key=${JWT_SIGN_KEY}
 /// mp.jwt.verify.issuer=quarkforge
 /// ```

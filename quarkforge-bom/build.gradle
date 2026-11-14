@@ -25,6 +25,7 @@ dependencies {
     api project(':quarkforge-excel')
     api project(':quarkforge-migration')
     api project(':quarkforge-security')
+    api project(':quarkforge-auth')
     api project(':quarkforge-redis')
     api project(':quarkforge-ratelimit')
     api project(':quarkforge-degrade')

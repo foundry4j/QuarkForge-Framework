@@ -28,6 +28,7 @@ include(
     "quarkforge-excel",
     "quarkforge-migration",
     "quarkforge-security",
+    "quarkforge-auth",
     "quarkforge-redis",
     "quarkforge-ratelimit",
     "quarkforge-degrade",

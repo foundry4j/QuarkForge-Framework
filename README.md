@@ -27,6 +27,7 @@ A modular rapid microservice development framework based on Quarkus, with built-
 | `quarkforge-excel` | Excel / CSV import & export | Streaming xlsx/CSV reading, row-level validation with error rows, SXSSF streaming export, REST upload/download helpers |
 | `quarkforge-migration` | Database migration | Flyway starter that automatically runs versioned scripts under `db/migration` at application startup |
 | `quarkforge-security` | Security & authentication | `JwtTokenService` token issuance (roles + `perms` permission claims), `AuthContext` current-user resolution, `@RequiresRole`/`@RequiresPermission` RBAC annotations with ANY/ALL semantics, `LoginUser` |
+| `quarkforge-auth` | Password login | `PasswordEncoder` (BCrypt default / Argon2 optional), login, rotating refresh tokens stored as SHA-256 hashes, refresh/logout endpoints |
 | `quarkforge-ratelimit` | Rate limiting | `@RateLimit` annotation, in-memory fixed-window default implementation, `RateLimiter` SPI |
 | `quarkforge-degrade` | Fault tolerance | SmallRye FT `@Retry`/`@CircuitBreaker`/`@Timeout`/`@Bulkhead`/`@Fallback`, circuit-open/timeout/bulkhead exceptions mapped to unified `Result` (503/504) |
 | `quarkforge-idempotency` | Idempotency | `@Idempotent` annotation, expression-based idempotency keys, cached result replay, `IdempotentStore` SPI (in-memory default / Redis auto-takeover) |
@@ -652,6 +653,37 @@ String token = jwt.issue(user.id.toString(), user.name,
 
 - For programmatic checks inside business logic, use `auth.hasPermission("user:delete")` / `auth.currentUser().hasPermission(...)`; both return `false` for anonymous callers.
 - The mapping between users, roles and permissions is owned by your business side (e.g. loaded from the database at login); the framework only carries and validates the claims.
+
+### Password Login & Refresh Tokens (auth)
+
+Adds the login half of the JWT story on top of `quarkforge-security`. Users stay in your own database: implement `UserAccountProvider` and the framework exposes the endpoints.
+
+```java
+@ApplicationScoped
+public class DbUserAccountProvider implements UserAccountProvider {
+
+    public Optional<UserAccount> findByUsername(String username) { ... }
+
+    public Optional<UserAccount> findById(String userId) { ... }   // used when refreshing
+}
+```
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/auth/login` | username + password → access token and refresh token |
+| POST | `/auth/refresh` | rotate the refresh token, returns a new token pair |
+| POST | `/auth/logout` | revoke the given refresh token |
+
+```properties
+quarkforge.auth.password.algorithm=bcrypt       # or argon2
+quarkforge.auth.refresh-token.ttl-days=30
+smallrye.jwt.sign.key={"kty":"oct","k":"...","alg":"HS256"}   # PEM or JWK
+```
+
+- Only the SHA-256 hash of a refresh token is stored; the plaintext value is returned once in the login/refresh response
+- Every refresh rotates the token and revokes the old one; reusing an already revoked token is treated as leakage and revokes all tokens of that user
+- Passwords are verified by hash prefix, so switching the default algorithm keeps existing BCrypt passwords working
+- BCrypt works out of the box; Argon2 requires adding `org.bouncycastle:bcprov-jdk18on` to the application
 
 ### Rate Limiting (ratelimit)
 

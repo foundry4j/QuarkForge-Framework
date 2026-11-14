@@ -1,0 +1,17 @@
+// quarkforge-auth —— 账号密码登录、刷新令牌与注销
+dependencies {
+    api project(':quarkforge-core')
+    api project(':quarkforge-data')
+    api project(':quarkforge-web')
+    api project(':quarkforge-security')
+    api 'io.quarkus:quarkus-arc'
+    api 'io.quarkus:quarkus-rest'
+    api 'io.quarkus:quarkus-rest-jackson'
+    api 'io.quarkus:quarkus-hibernate-orm-panache'
+    api 'io.quarkus:quarkus-elytron-security-common'
+    // Argon2 为可选算法：quarkforge.auth.password.algorithm=argon2 时由业务方显式引入
+    compileOnly 'org.bouncycastle:bcprov-jdk18on'
+    testImplementation 'org.bouncycastle:bcprov-jdk18on'
+    testImplementation 'io.quarkus:quarkus-jdbc-h2'
+    testImplementation 'io.rest-assured:rest-assured'
+}

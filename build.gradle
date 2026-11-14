@@ -29,6 +29,7 @@ def moduleDescriptions = [
     'quarkforge-excel'             : 'Streaming Excel and CSV import/export',
     'quarkforge-migration'         : 'Flyway database migration starter',
     'quarkforge-security'          : 'JWT issuance, current-user context and RBAC annotations',
+    'quarkforge-auth'              : 'Password login, refresh tokens and logout endpoints',
     'quarkforge-redis'             : 'Redis cache, distributed locks, rate limiting and idempotency',
     'quarkforge-ratelimit'         : 'Annotation-driven rate limiting',
     'quarkforge-degrade'           : 'Fault tolerance with retries, circuit breakers and timeouts',
