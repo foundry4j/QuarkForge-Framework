@@ -1,11 +1,14 @@
 package io.github.foundry4j.quarkforge.data;
 
-import java.time.Instant;
-
-import jakarta.transaction.Transactional;
+import io.github.foundry4j.quarkforge.core.api.CommonErrorCode;
 import io.github.foundry4j.quarkforge.core.api.PageResult;
 import io.github.foundry4j.quarkforge.core.context.ActorContext;
+import io.github.foundry4j.quarkforge.core.exception.BizException;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
+import jakarta.persistence.PersistenceException;
+import jakarta.transaction.Transactional;
+
+import java.time.Instant;
 
 /// ## SoftDeleteRepository
 /// 软删除仓储基类，默认过滤已删除数据，并提供回收站与恢复能力。
@@ -58,9 +61,11 @@ public abstract class SoftDeleteRepository<T extends SoftDeleteEntity> extends B
     }
 
     /// 软删除指定 ID，返回是否命中未删除记录。
+    /// `deleteVersion` 取自身主键，保证同一业务值可以被多次删除而不撞唯一索引。
     @Transactional
     public boolean deleteById(Long id) {
-        return update("deleted = true, deletedAt = ?1, deletedBy = ?2 where id = ?3 and " + ACTIVE_CONDITION,
+        return update("deleted = true, deletedAt = ?1, deletedBy = ?2, deleteVersion = id "
+                        + "where id = ?3 and " + ACTIVE_CONDITION,
                 Instant.now(), ActorContext.currentOr("system"), id) > 0;
     }
 
@@ -87,14 +92,22 @@ public abstract class SoftDeleteRepository<T extends SoftDeleteEntity> extends B
     @Override
     @Transactional
     public long deleteAll() {
-        return update("deleted = true, deletedAt = ?1, deletedBy = ?2 where " + ACTIVE_CONDITION,
+        return update("deleted = true, deletedAt = ?1, deletedBy = ?2, deleteVersion = id where " + ACTIVE_CONDITION,
                 Instant.now(), ActorContext.currentOr("system"));
     }
 
     /// 从回收站恢复，返回是否命中已删除记录。
+    ///
+    /// 恢复会把 `deleteVersion` 归零，若业务唯一键已被其他未删除数据占用，
+    /// 数据库唯一约束会拒绝本次恢复，这里转换为 `CONFLICT` 业务异常。
     @Transactional
     public boolean restoreById(Long id) {
-        return update("deleted = false, deletedAt = null, deletedBy = null where id = ?1 and deleted = true", id) > 0;
+        try {
+            return update("deleted = false, deletedAt = null, deletedBy = null, deleteVersion = 0 "
+                    + "where id = ?1 and deleted = true", id) > 0;
+        } catch (PersistenceException e) {
+            throw new BizException(CommonErrorCode.CONFLICT, "恢复失败：业务唯一键已被其他数据占用");
+        }
     }
 
     /// 物理删除指定 ID（谨慎使用）。

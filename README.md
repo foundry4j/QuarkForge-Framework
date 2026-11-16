@@ -19,7 +19,7 @@ A modular rapid microservice development framework based on Quarkus, with built-
 | `quarkforge-web` | Web layer | Global exception mapping, automatic response wrapping, `@RawResponse` exemption, access log with traceId, `PageQuery` pagination parameters, file upload/download, API versioning |
 | `quarkforge-gateway` | API gateway | In-process reverse proxy with declarative routes, longest-prefix matching, prefix stripping, timeouts, and unified 502/504 `Result` bodies |
 | `quarkforge-validation` | Parameter validation | Business-oriented Bean Validation annotations: `@Phone`, `@IdCard`, `@BankCard`, `@PasswordStrength`, `@EnumValid` |
-| `quarkforge-data` | Data access | `BaseEntity` (snowflake ID + audit timestamps), `BaseRepository` (offset pagination to `PageResult`, keyset/cursor pagination to `CursorPage`), `TenantEntity` multi-tenant auto-filtering, `SoftDeleteEntity`/`SoftDeleteRepository` soft delete with recycle bin, `VersionedEntity` optimistic locking (`@Version`), `AuditSupport` audit SPI |
+| `quarkforge-data` | Data access | `BaseEntity` (snowflake ID + audit timestamps), `BaseRepository` (offset pagination to `PageResult`, keyset/cursor pagination to `CursorPage`), `TenantEntity` multi-tenant auto-filtering, `SoftDeleteEntity`/`SoftDeleteRepository` soft delete with recycle bin and `delete_version` unique-key support, `VersionedEntity` optimistic locking (`@Version`), `AuditSupport` audit SPI |
 | `quarkforge-audit` | Audit logging | Automatically records create/update/delete operations with field-level diffs on updates (e.g. price 100 → 120), `AuditLog` persistence, operator resolution, security events (login success/failure, logout, token revocation, access denied), `@OperationLog` method-level operation logs |
 | `quarkforge-crypto` | Encryption & masking | AES-256-GCM `CryptoService`, `EncryptedStringConverter` field encryption, `@Sensitive` response masking (`138****0000`) |
 | `quarkforge-cache` | Local cache | `CacheService` SPI, Caffeine default implementation, `@Cacheable`/`@CacheEvict`/`@CachePut` annotations, `@CacheWarmup` startup preloading, built-in Bloom-filter penetration guard and single-flight breakdown guard |
@@ -319,6 +319,26 @@ public class Account extends VersionedEntity {
 ```
 
 `VersionedEntity` adds a `version` column that increments on every successful update. Concurrent updates with a stale version throw `OptimisticLockException`, which the web layer maps to HTTP 409 / error code `40901` (localized via `error.40901`). Entities extending `BaseEntity` directly keep their original schema and are not versioned.
+
+#### Soft delete + unique constraints
+
+Soft-deleted rows still occupy unique keys. `SoftDeleteEntity` provides `delete_version` for this: `0` while active, the row's own id once deleted. Put it into the unique constraint so active rows stay unique while deleted rows never collide:
+
+```java
+@Entity
+@Table(uniqueConstraints = @UniqueConstraint(
+        name = "uk_user_email", columnNames = {"email", "delete_version"}))
+public class User extends SoftDeleteEntity {
+    public String email;
+}
+```
+
+```sql
+ALTER TABLE qf_user ADD COLUMN delete_version BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE qf_user ADD CONSTRAINT uk_user_email UNIQUE (email, delete_version);
+```
+
+Deleting sets `delete_version = id` automatically (both `deleteById` and `deleteAll`), restoring resets it to `0`. If the business value has been taken by another active row in the meantime, the database rejects the restore and `restoreById` translates it into error code `40900` instead of a 500. On PostgreSQL a partial unique index (`WHERE deleted = false`) is a supported alternative.
 
 When no tenant is set explicitly, the default tenant `default` is used (`quarkforge.data.tenant.default`). The request entry point can call `TenantContext.set(...)` to propagate the tenant according to the project's authentication scheme.
 
