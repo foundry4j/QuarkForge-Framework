@@ -38,6 +38,7 @@ import java.util.function.Supplier;
 /// quarkforge.cache.local.bloom.expected-insertions=100000
 /// quarkforge.cache.local.bloom.false-positive-rate=0.01
 /// quarkforge.cache.local.null-value-ttl=PT1M
+/// quarkforge.cache.ttl-jitter=0.1        # 过期时间随机上浮 0~10%，防止同时过期
 /// ```
 ///
 /// 引入 `quarkforge-redis` 后会被 [io.github.foundry4j.quarkforge.redis.RedisTwoLevelCacheService]
@@ -69,6 +70,10 @@ public class LocalCacheService implements CacheService {
     @Inject
     @ConfigProperty(name = "quarkforge.cache.local.null-value-ttl", defaultValue = "PT1M")
     Duration nullValueTtl;
+
+    @Inject
+    @ConfigProperty(name = "quarkforge.cache.ttl-jitter", defaultValue = "0.1")
+    double ttlJitter;
 
     private Cache<String, CachedValue> cache;
     private SimpleBloomFilter bloom;
@@ -245,7 +250,7 @@ public class LocalCacheService implements CacheService {
 
     private long ttlNanos(Duration ttl) {
         Duration effective = ttl == null || ttl.isZero() || ttl.isNegative() ? defaultTtl : ttl;
-        return Math.max(effective.toNanos(), 0);
+        return Math.max(TtlJitter.apply(effective, ttlJitter).toNanos(), 0);
     }
 
     private record CachedValue(Object value, long ttlNanos) {

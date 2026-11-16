@@ -530,7 +530,10 @@ quarkforge.cache.local.null-value-ttl=PT1M          # short TTL for negative cac
 quarkforge.cache.local.bloom.enabled=true
 quarkforge.cache.local.bloom.expected-insertions=100000
 quarkforge.cache.local.bloom.false-positive-rate=0.01
+quarkforge.cache.ttl-jitter=0.1                     # randomize TTL upward by 0-10% to avoid mass expiry
 ```
+
+`ttl-jitter` applies to both the local Caffeine layer and Redis (`setex`), so keys written at the same time do not expire simultaneously. It only extends the TTL — the effective lifetime is always between `ttl` and `ttl × (1 + jitter)`. Set it to `0` to disable.
 
 After adding `quarkforge-redis`, the default bean switches to `RedisTwoLevelCacheService`; two-level cache inherits the SPI but the Bloom / single-flight protections stay at the local layer, which is usually sufficient for hot-key shielding while Redis handles distribution.
 
@@ -1095,6 +1098,7 @@ Swagger UI is available at `http://localhost:8080/q/swagger-ui`; log in as the a
 | `quarkforge.crypto.key` | none (required) | Field encryption key, Base64 of 32 bytes |
 | `quarkforge.cache.local.max-size` | `10000` | Maximum number of local cache entries |
 | `quarkforge.cache.local.default-ttl` | `PT5M` | Default local cache TTL |
+| `quarkforge.cache.ttl-jitter` | `0.1` | Random upward TTL jitter ratio (0 disables), prevents avalanche expiry |
 | `quarkforge.jwt.issuer` | `quarkforge` | JWT issuer |
 | `quarkforge.jwt.ttl-minutes` | `120` | JWT validity (minutes) |
 | `quarkforge.outbox.enabled` | `true` | Outbox background dispatch switch |

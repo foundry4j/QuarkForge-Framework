@@ -1,15 +1,17 @@
 package io.github.foundry4j.quarkforge.redis;
 
-import java.time.Duration;
-import java.util.function.Supplier;
-
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.foundry4j.quarkforge.cache.TtlJitter;
 import io.quarkus.redis.datasource.RedisDataSource;
 import io.quarkus.redis.datasource.keys.KeyCommands;
 import io.quarkus.redis.datasource.value.ValueCommands;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
+import java.time.Duration;
+import java.util.function.Supplier;
 
 /// ## RedisCacheService
 /// 基于 JSON 序列化的缓存服务，内置 cache-aside（旁路缓存）模式：
@@ -28,15 +30,19 @@ public class RedisCacheService {
     private final ObjectMapper objectMapper;
 
     @Inject
+    @ConfigProperty(name = "quarkforge.cache.ttl-jitter", defaultValue = "0.1")
+    double ttlJitter;
+
+    @Inject
     public RedisCacheService(RedisDataSource dataSource, ObjectMapper objectMapper) {
         this.values = dataSource.value(String.class);
         this.keys = dataSource.key();
         this.objectMapper = objectMapper;
     }
 
-    /// 写入缓存并设置过期时间。
+    /// 写入缓存并设置过期时间（叠加随机抖动，避免批量键同时过期）。
     public <T> void set(String key, T value, Duration ttl) {
-        values.setex(key, ttl.toSeconds(), toJson(value));
+        values.setex(key, Math.max(TtlJitter.apply(ttl, ttlJitter).toSeconds(), 1), toJson(value));
     }
 
     /// 读取缓存，未命中或反序列化失败时返回 `null`。
