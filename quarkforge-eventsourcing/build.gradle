@@ -1,0 +1,6 @@
+// quarkforge-eventsourcing —— 事件溯源与 CQRS 基础模块
+dependencies {
+    api project(':quarkforge-data')
+    api 'io.quarkus:quarkus-jackson'
+    testImplementation 'io.quarkus:quarkus-jdbc-h2'
+}

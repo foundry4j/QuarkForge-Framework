@@ -35,6 +35,7 @@ dependencies {
     api project(':quarkforge-messaging-kafka')
     api project(':quarkforge-outbox')
     api project(':quarkforge-outbox-admin')
+    api project(':quarkforge-eventsourcing')
     api project(':quarkforge-rpc')
     api project(':quarkforge-scheduler')
     api project(':quarkforge-notification')

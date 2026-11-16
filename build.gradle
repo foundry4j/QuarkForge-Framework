@@ -39,6 +39,7 @@ def moduleDescriptions = [
     'quarkforge-messaging-kafka'   : 'Kafka transport for messaging',
     'quarkforge-outbox'            : 'Transactional outbox with delayed delivery and retries',
     'quarkforge-outbox-admin'      : 'Admin endpoints for querying and replaying outbox messages',
+    'quarkforge-eventsourcing'     : 'Event sourcing and CQRS building blocks',
     'quarkforge-rpc'               : 'gRPC infrastructure with error mapping and trace propagation',
     'quarkforge-scheduler'         : 'JobRunr based job scheduling',
     'quarkforge-notification'      : 'Multi-tenant notification center with WebSocket push',

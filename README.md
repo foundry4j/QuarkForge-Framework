@@ -36,6 +36,7 @@ A modular rapid microservice development framework based on Quarkus, with built-
 | `quarkforge-messaging-kafka` | Kafka | Kafka transport for messaging: topic delivery with messageId as record key, headers/timestamp mapping, per-topic consumer group with manual offset commit, exponential-backoff retry, dead-letter topic, consumer concurrency and max-poll-records, idempotent producer switch |
 | `quarkforge-outbox` | Transactional outbox | Local message table, delayed delivery, exponential-backoff retry on failure, scheduled redelivery |
 | `quarkforge-outbox-admin` | Outbox admin | Query failed outbox messages, replay one message, condition-based batch replay (admin role required) |
+| `quarkforge-eventsourcing` | Event sourcing / CQRS | `AggregateRoot`, `EventStore`/`JpaEventStore` (JSON payloads, optimistic concurrency), `EventSourcedRepository`, `EventProjection`/`ProjectionRunner` with checkpoints |
 | `quarkforge-rpc` | RPC communication | gRPC infrastructure: `BizException` ↔ gRPC status mapping with error-code trailers, traceId propagation interceptors, built-in `Echo` diagnostics service |
 | `quarkforge-scheduler` | Job scheduling | JobRunr integration with in-memory storage (standalone) and SQL storage (distributed), built-in dashboard |
 | `quarkforge-notification` | Notification center | Multi-tenant notification persistence, `NotificationSender` SPI for business modules to decouple from delivery concerns, REST API, and WebSocket real-time push |
@@ -910,6 +911,65 @@ A background job scans the local message table every 5 seconds for redelivery; f
 ```
 
 Replay resets `status=PENDING`, `attempts=0` and clears `lastError`; actual delivery is then handled by the dispatcher. The batch limit defaults to 200 and is capped at 1000.
+
+### Event Sourcing & CQRS (eventsourcing)
+
+`quarkforge-eventsourcing` provides the write side (event-sourced aggregates) and a minimal read-side projection runner on top of `quarkforge-data`.
+
+```java
+public record OrderCreated(String orderNo, BigDecimal amount) implements DomainEvent { }
+
+public class Order extends AggregateRoot {
+    private String status;
+
+    public static Order create(String orderNo) {
+        Order order = new Order();
+        order.apply(new OrderCreated(orderNo, BigDecimal.TEN));
+        return order;
+    }
+
+    @Override
+    protected void mutate(DomainEvent event) {
+        if (event instanceof OrderCreated) {
+            status = "CREATED";
+        }
+    }
+}
+
+@ApplicationScoped
+public class OrderRepository extends EventSourcedRepository<Order> {
+    @Override protected String aggregateType() { return "Order"; }
+    @Override protected Order newAggregate() { return new Order(); }
+}
+```
+
+```java
+Order order = Order.create("A001");
+orderRepository.save("A001", order);        // appends uncommitted events
+Order loaded = orderRepository.load("A001"); // replays history; version() == 1
+```
+
+- Events are stored in `qf_stored_event` with JSON payloads and a unique `(aggregate_type, aggregate_id, sequence_no)` constraint.
+- `save` is optimistic: if another request appended first, `OptimisticConcurrencyException` is thrown — reload and retry the command.
+- `AggregateRoot.expectedVersion()` is the number of already persisted events; `version()` is the total applied (including uncommitted).
+- `load` returns an empty aggregate (`version() == 0`) when the stream does not exist.
+
+Read models:
+
+```java
+@ApplicationScoped
+public class OrderSummaryProjection implements EventProjection {
+    public String name() { return "order-summary"; }
+    public void handle(StoredEvent event) {
+        if (event.payload() instanceof OrderCreated created) { /* upsert read model */ }
+    }
+}
+
+// drive it from your own scheduler or admin endpoint
+while (projectionRunner.catchUp(projection, 200) == 200) { }
+```
+
+`ProjectionRunner` reads events after the persisted checkpoint (`qf_projection_checkpoint`) and updates the checkpoint in the same transaction as the projection writes, so failures roll back together and events are applied once.
 
 ### RPC (rpc)
 
