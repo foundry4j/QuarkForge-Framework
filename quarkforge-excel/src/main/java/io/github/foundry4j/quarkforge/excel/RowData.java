@@ -1,7 +1,5 @@
 package io.github.foundry4j.quarkforge.excel;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /// ## RowData
@@ -19,10 +17,10 @@ public record RowData(int rowNumber, List<String> headers, List<String> values) 
     public RowData {
         headers = headers == null
                 ? List.of()
-                : Collections.unmodifiableList(new ArrayList<>(headers));
+                : List.copyOf(headers);
         values = values == null
                 ? List.of()
-                : Collections.unmodifiableList(new ArrayList<>(values));
+                : List.copyOf(values);
     }
 
     /// 按列序号取值（0 起始）；越界返回 `""`。

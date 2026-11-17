@@ -1,7 +1,7 @@
 dependencies {
     api project(':quarkforge-core')
     api project(':quarkforge-web')
-    api 'org.apache.poi:poi-ooxml:5.4.1'
+    api 'org.apache.fesod:fesod-sheet:2.1.0-incubating'
     api 'jakarta.ws.rs:jakarta.ws.rs-api'
     api 'io.quarkus.resteasy.reactive:resteasy-reactive-common'
     runtimeOnly 'org.jboss.logmanager:log4j2-jboss-logmanager:2.0.1.Final'

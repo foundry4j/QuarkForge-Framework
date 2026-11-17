@@ -1,12 +1,11 @@
 package io.github.foundry4j.quarkforge.excel;
 
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.fesod.sheet.FesodSheet;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /// 测试用：在内存中生成 xlsx 字节。
 final class ExcelTestSupport {
@@ -15,34 +14,15 @@ final class ExcelTestSupport {
     }
 
     static byte[] xlsx(Object[][] rows) {
-        try (XSSFWorkbook workbook = new XSSFWorkbook();
-             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            Sheet sheet = workbook.createSheet("Sheet1");
-            for (int r = 0; r < rows.length; r++) {
-                Row row = sheet.createRow(r);
-                Object[] values = rows[r];
-                if (values == null) {
-                    continue;
-                }
-                for (int c = 0; c < values.length; c++) {
-                    Object value = values[c];
-                    if (value == null) {
-                        continue;
-                    }
-                    Cell cell = row.createCell(c);
-                    if (value instanceof Number number) {
-                        cell.setCellValue(number.doubleValue());
-                    } else if (value instanceof Boolean bool) {
-                        cell.setCellValue(bool);
-                    } else {
-                        cell.setCellValue(value.toString());
-                    }
-                }
-            }
-            workbook.write(out);
-            return out.toByteArray();
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
+        List<List<Object>> data = new ArrayList<>(rows.length);
+        for (Object[] row : rows) {
+            data.add(row == null ? List.of() : Arrays.asList(row));
         }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        FesodSheet.write(out)
+                .head(new ArrayList<>())
+                .sheet("Sheet1")
+                .doWrite(data);
+        return out.toByteArray();
     }
 }

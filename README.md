@@ -24,7 +24,7 @@ A modular rapid microservice development framework based on Quarkus, with built-
 | `quarkforge-crypto` | Encryption & masking | AES-256-GCM `CryptoService`, `EncryptedStringConverter` field encryption, `@Sensitive` response masking (`138****0000`) |
 | `quarkforge-cache` | Local cache | `CacheService` SPI, Caffeine default implementation, `@Cacheable`/`@CacheEvict`/`@CachePut` annotations, `@CacheWarmup` startup preloading, built-in Bloom-filter penetration guard and single-flight breakdown guard |
 | `quarkforge-dict` | Dictionary & metadata | Multi-tenant dict types/items, cached lookups, value→label translation, hierarchical dictionaries via `parentValue` |
-| `quarkforge-excel` | Excel / CSV import & export | Streaming xlsx/CSV reading, row-level validation with error rows, SXSSF streaming export, REST upload/download helpers |
+| `quarkforge-excel` | Excel / CSV import & export | Streaming xlsx/CSV reading, row-level validation with error rows, Apache Fesod streaming export, REST upload/download helpers |
 | `quarkforge-migration` | Database migration | Flyway starter that automatically runs versioned scripts under `db/migration` at application startup |
 | `quarkforge-security` | Security & authentication | `JwtTokenService` token issuance (jti, roles + `perms` permission claims), `TokenBlacklist` SPI (jti and user-level revocation enforced by a security identity augmentor), `AuthContext` current-user resolution, `@RequiresRole`/`@RequiresPermission` RBAC annotations with ANY/ALL semantics, `LoginUser` |
 | `quarkforge-auth` | Password login | `PasswordEncoder` (BCrypt default / Argon2 optional), login, rotating refresh tokens stored as SHA-256 hashes, refresh/logout endpoints |
@@ -609,7 +609,7 @@ Notes:
 
 ### Excel / CSV Import & Export (excel)
 
-Both directions are streaming — memory usage does not grow with the number of rows. Reading uses the POI SAX event model for `.xlsx` and a character-level parser for CSV (quoted commas, embedded newlines, `""` escapes, UTF-8 BOM). Export uses `SXSSFWorkbook` with a sliding row window, flushing to temporary files as it goes.
+Both directions are streaming — memory usage does not grow with the number of rows. Reading uses Apache Fesod's SAX reader for `.xlsx` and a character-level parser for CSV (quoted commas, embedded newlines, `""` escapes, UTF-8 BOM). Export writes through Apache Fesod in batches sized by `windowSize`, so rows are flushed instead of being held in memory.
 
 ```java
 List<User> users = new ArrayList<>();

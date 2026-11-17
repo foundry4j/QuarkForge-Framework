@@ -2,15 +2,16 @@ package io.github.foundry4j.quarkforge.excel;
 
 import io.github.foundry4j.quarkforge.core.api.CommonErrorCode;
 import io.github.foundry4j.quarkforge.core.exception.BizException;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.FillPatternType;
-import org.apache.poi.ss.usermodel.Font;
-import org.apache.poi.ss.usermodel.IndexedColors;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.xssf.streaming.SXSSFWorkbook;
+import org.apache.fesod.sheet.ExcelWriter;
+import org.apache.fesod.sheet.FesodSheet;
+import org.apache.fesod.sheet.enums.poi.FillPatternTypeEnum;
+import org.apache.fesod.sheet.write.handler.SheetWriteHandler;
+import org.apache.fesod.sheet.write.metadata.WriteSheet;
+import org.apache.fesod.sheet.write.metadata.holder.WriteSheetHolder;
+import org.apache.fesod.sheet.write.metadata.holder.WriteWorkbookHolder;
+import org.apache.fesod.sheet.write.metadata.style.WriteCellStyle;
+import org.apache.fesod.sheet.write.metadata.style.WriteFont;
+import org.apache.fesod.sheet.write.style.HorizontalCellStyleStrategy;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -23,15 +24,15 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.List;
 import java.util.stream.Stream;
 
 /// ## ExcelExporter
-/// 流式导出，内存占用由滑动窗口控制，与总行数无关：
+/// 流式导出，内存占用由批次大小控制，与总行数无关：
 ///
-/// - `.xlsx` 使用 POI `SXSSFWorkbook`，每写满 `windowSize` 行就刷到临时文件
+/// - `.xlsx` 使用 Apache Fesod 分批写出，每写满 `windowSize` 行刷出一次
 /// - `.csv` 直接逐行写 `OutputStream`，并可选写 UTF-8 BOM
 ///
 /// ```java
@@ -48,6 +49,9 @@ public final class ExcelExporter {
             DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter DATE_TIME_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    /// `IndexedColors.GREY_25_PERCENT` 的调色板下标，用于表头底色。
+    private static final short HEADER_FILL_COLOR = 22;
 
     private ExcelExporter() {
     }
@@ -86,94 +90,81 @@ public final class ExcelExporter {
 
     private static <T> void writeXlsx(OutputStream out, ExcelExportSpec<T> spec,
                                       Iterable<? extends T> rows) {
-        try (SXSSFWorkbook workbook = new SXSSFWorkbook(spec.windowSize())) {
-            try {
-                workbook.setCompressTempFiles(true);
-                Sheet sheet = workbook.createSheet(spec.sheetName());
-
-                CellStyle headerStyle = headerStyle(workbook);
-                CellStyle dateStyle = dateStyle(workbook, "yyyy-mm-dd");
-                CellStyle dateTimeStyle = dateStyle(workbook, "yyyy-mm-dd HH:mm:ss");
-
-                Row header = sheet.createRow(0);
-                for (int i = 0; i < spec.columns().size(); i++) {
-                    Column<T> column = spec.columns().get(i);
-                    Cell cell = header.createCell(i);
-                    cell.setCellValue(column.header());
-                    cell.setCellStyle(headerStyle);
-                    sheet.setColumnWidth(i, Math.clamp(column.width(), 8, 60) * 256);
+        List<List<String>> head = spec.columns().stream()
+                .map(column -> List.of(column.header()))
+                .toList();
+        ExcelWriter writer = FesodSheet.write(out)
+                .head(head)
+                .autoCloseStream(false)
+                .registerWriteHandler(new HorizontalCellStyleStrategy(headerStyle(), new WriteCellStyle()))
+                .registerWriteHandler(new LayoutHandler(spec))
+                .build();
+        try {
+            WriteSheet sheet = FesodSheet.writerSheet(0, spec.sheetName()).build();
+            List<List<Object>> batch = new ArrayList<>(spec.windowSize());
+            int written = 0;
+            for (T item : rows) {
+                batch.add(rowOf(item, spec));
+                if (batch.size() >= spec.windowSize()) {
+                    writer.write(batch, sheet);
+                    written += batch.size();
+                    batch.clear();
                 }
-                if (spec.freezeHeader()) {
-                    sheet.createFreezePane(0, 1);
-                }
-
-                int rowIndex = 1;
-                for (T item : rows) {
-                    Row row = sheet.createRow(rowIndex++);
-                    for (int i = 0; i < spec.columns().size(); i++) {
-                        Object value = spec.columns().get(i).getter().apply(item);
-                        if (value != null) {
-                            setCellValue(row.createCell(i), value, dateStyle, dateTimeStyle);
-                        }
-                    }
-                }
-
-                workbook.write(out);
-                out.flush();
-            } catch (IOException e) {
-                throw new BizException(CommonErrorCode.INTERNAL_ERROR, "导出 Excel 失败", e);
             }
-        } catch (IOException _) {
-            // 关闭失败不影响已写出的内容
+            if (!batch.isEmpty() || written == 0) {
+                // 空数据也要写出表头
+                writer.write(batch, sheet);
+            }
+        } catch (BizException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new BizException(CommonErrorCode.INTERNAL_ERROR, "导出 Excel 失败", e);
+        } finally {
+            writer.finish();
         }
-        // close() also disposes the temporary files created by SXSSF
     }
 
-    private static CellStyle headerStyle(Workbook workbook) {
-        CellStyle style = workbook.createCellStyle();
-        Font font = workbook.createFont();
+    private static WriteCellStyle headerStyle() {
+        WriteCellStyle style = new WriteCellStyle();
+        WriteFont font = new WriteFont();
         font.setBold(true);
-        style.setFont(font);
-        style.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
-        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        style.setWriteFont(font);
+        style.setFillForegroundColor(HEADER_FILL_COLOR);
+        style.setFillPatternType(FillPatternTypeEnum.SOLID_FOREGROUND.getPoiFillPatternType());
         return style;
     }
 
-    private static CellStyle dateStyle(Workbook workbook, String pattern) {
-        CellStyle style = workbook.createCellStyle();
-        style.setDataFormat(workbook.getCreationHelper().createDataFormat().getFormat(pattern));
-        return style;
+    /// 按列定义取值，并把枚举/时间类型规整成 Fesod 内置转换器支持的形态。
+    private static <T> List<Object> rowOf(T item, ExcelExportSpec<T> spec) {
+        List<Object> values = new ArrayList<>(spec.columns().size());
+        for (Column<T> column : spec.columns()) {
+            values.add(normalize(column.getter().apply(item)));
+        }
+        return values;
     }
 
-    private static void setCellValue(Cell cell, Object value, CellStyle dateStyle, CellStyle dateTimeStyle) {
-        if (value instanceof String text) {
-            cell.setCellValue(text);
-        } else if (value instanceof Boolean bool) {
-            cell.setCellValue(bool);
-        } else if (value instanceof Byte || value instanceof Short
-                || value instanceof Integer || value instanceof Long) {
-            cell.setCellValue(((Number) value).longValue());
-        } else if (value instanceof Number number) {
-            cell.setCellValue(number.doubleValue());
-        } else if (value instanceof LocalDate date) {
-            cell.setCellValue(date);
-            cell.setCellStyle(dateStyle);
-        } else if (value instanceof LocalDateTime dateTime) {
-            cell.setCellValue(dateTime);
-            cell.setCellStyle(dateTimeStyle);
-        } else if (value instanceof Instant instant) {
-            cell.setCellValue(LocalDateTime.ofInstant(instant, ZoneId.systemDefault()));
-            cell.setCellStyle(dateTimeStyle);
-        } else if (value instanceof java.sql.Date date) {
-            cell.setCellValue(date.toLocalDate());
-            cell.setCellStyle(dateStyle);
-        } else if (value instanceof Date date) {
-            cell.setCellValue(LocalDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault()));
-            cell.setCellStyle(dateTimeStyle);
-        } else if (value instanceof Enum<?> enumValue) {
-            cell.setCellValue(enumValue.name());
-        } else {
-            cell.setCellValue(value.toString());
+    private static Object normalize(Object value) {
+        return switch (value) {
+            case null -> null;
+            case Enum<?> enumValue -> enumValue.name();
+            case Instant instant -> LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
+            case java.sql.Date date -> date.toLocalDate();
+            default -> value;
+        };
+    }
+
+    /// 设置列宽与冻结表头：Fesod 未提供声明式入口，通过 `SheetWriteHandler` 落到工作表上。
+    private record LayoutHandler(ExcelExportSpec<?> spec) implements SheetWriteHandler {
+
+        @Override
+        public void afterSheetCreate(WriteWorkbookHolder workbookHolder, WriteSheetHolder sheetHolder) {
+            var sheet = sheetHolder.getSheet();
+            for (int i = 0; i < spec.columns().size(); i++) {
+                sheet.setColumnWidth(i, Math.clamp(spec.columns().get(i).width(), 8, 60) * 256);
+            }
+            if (spec.freezeHeader()) {
+                sheet.createFreezePane(0, 1);
+            }
         }
     }
 

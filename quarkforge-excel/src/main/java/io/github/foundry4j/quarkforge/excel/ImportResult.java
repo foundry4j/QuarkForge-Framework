@@ -1,7 +1,5 @@
 package io.github.foundry4j.quarkforge.excel;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /// ## ImportResult
@@ -21,7 +19,7 @@ public record ImportResult(long totalRows, long successRows, long failedRows,
     public ImportResult {
         errors = errors == null
                 ? List.of()
-                : Collections.unmodifiableList(new ArrayList<>(errors));
+                : List.copyOf(errors);
     }
 
     public boolean hasErrors() {

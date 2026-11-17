@@ -2,27 +2,22 @@ package io.github.foundry4j.quarkforge.excel;
 
 import io.github.foundry4j.quarkforge.core.api.CommonErrorCode;
 import io.github.foundry4j.quarkforge.core.exception.BizException;
-import org.apache.poi.openxml4j.opc.OPCPackage;
-import org.apache.poi.util.XMLHelper;
-import org.apache.poi.xssf.eventusermodel.XSSFReader;
-import org.apache.poi.xssf.eventusermodel.XSSFSheetXMLHandler;
-import org.apache.poi.xssf.model.SharedStrings;
-import org.apache.poi.xssf.usermodel.XSSFComment;
-import org.xml.sax.InputSource;
-import org.xml.sax.XMLReader;
+import org.apache.fesod.sheet.FesodSheet;
+import org.apache.fesod.sheet.context.AnalysisContext;
+import org.apache.fesod.sheet.read.listener.ReadListener;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PushbackReader;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 /// ## ExcelReader
 /// 流式读取 `.xlsx` / `.csv`，逐行回调，内存占用与文件大小无关：
 ///
-/// - Excel 走 POI 事件模型（SAX），不构建 Workbook
+/// - Excel 走 Apache Fesod 的 SAX 读取器，不构建 Workbook
 /// - CSV 使用字符级状态机，支持引号包裹的逗号/换行、`""` 转义、UTF-8 BOM
 ///
 /// ```java
@@ -64,87 +59,72 @@ public final class ExcelReader {
         }
     }
 
-    // ---------- Excel（SAX） ----------
+    // ---------- Excel（Fesod SAX） ----------
 
-    private static void readXlsx(InputStream in, RowReadOptions options, RowConsumer consumer) throws Exception {
-        try (OPCPackage pkg = OPCPackage.open(in)) {
-            XSSFReader reader = new XSSFReader(pkg);
-            SharedStrings sharedStrings = reader.getSharedStringsTable();
-            XSSFSheetXMLHandler handler = new XSSFSheetXMLHandler(
-                    reader.getStylesTable(), sharedStrings,
-                    new SheetHandler(options, consumer), false);
-
-            XMLReader parser = XMLHelper.newXMLReader();
-            parser.setContentHandler(handler);
-
-            try (InputStream sheet = openSheet(reader, options.sheetIndex())) {
-                parser.parse(new InputSource(sheet));
-            }
-        }
+    /// 关闭表头识别，交给我们自己的回调处理表头与空行，
+    /// 这样 `headerRowIndex` 可以指向任意物理行，且未配置表头时首行也是数据。
+    private static void readXlsx(InputStream in, RowReadOptions options, RowConsumer consumer) {
+        FesodSheet.read(in)
+                .headRowNumber(0)
+                .ignoreEmptyRow(options.skipEmptyRows())
+                .autoCloseStream(false)
+                .registerReadListener(new SheetListener(options, consumer))
+                .sheet(options.sheetIndex())
+                .doRead();
     }
 
-    private static InputStream openSheet(XSSFReader reader, int sheetIndex) throws Exception {
-        Iterator<InputStream> sheets = reader.getSheetsData();
-        for (int i = 0; i < sheetIndex && sheets.hasNext(); i++) {
-            try (InputStream ignored = sheets.next()) {
-                // 跳过前置工作表，关闭其数据流避免句柄泄漏
-            }
-        }
-        if (!sheets.hasNext()) {
-            throw new BizException(CommonErrorCode.PARAM_ERROR,
-                    "工作表不存在，下标: " + sheetIndex);
-        }
-        return sheets.next();
-    }
-
-    /// POI SAX 回调：把单元格拼成一行文本，并按需处理表头/空行。
-    private static final class SheetHandler implements XSSFSheetXMLHandler.SheetContentsHandler {
+    /// Fesod 逐行回调：把 `Map<列号, 文本>` 归一化为定宽列表，并按需处理表头/空行。
+    private static final class SheetListener implements ReadListener<Map<Integer, String>> {
 
         private final RowReadOptions options;
         private final RowConsumer consumer;
         private final List<String> headers = new ArrayList<>();
-        private List<String> current = new ArrayList<>();
-        private int lastColumn;
 
-        private SheetHandler(RowReadOptions options, RowConsumer consumer) {
+        private SheetListener(RowReadOptions options, RowConsumer consumer) {
             this.options = options;
             this.consumer = consumer;
         }
 
         @Override
-        public void startRow(int rowNum) {
-            current = new ArrayList<>();
-            lastColumn = -1;
-        }
-
-        @Override
-        public void cell(String cellReference, String formattedValue, XSSFComment comment) {
-            int column = columnIndex(cellReference, current.size());
-            while (current.size() <= column) {
-                current.add("");
-            }
-            current.set(column, formattedValue == null ? "" : formattedValue);
-            lastColumn = column;
-        }
-
-        @Override
-        public void endRow(int rowNum) {
-            int expectedWidth = Math.max(lastColumn + 1, current.size());
-            while (current.size() < expectedWidth) {
-                current.add("");
-            }
-            if (options.headerRowIndex() >= 0 && rowNum == options.headerRowIndex()) {
+        public void invoke(Map<Integer, String> data, AnalysisContext context) {
+            int rowIndex = context.readRowHolder().getRowIndex();
+            List<String> values = toValues(data);
+            if (options.headerRowIndex() >= 0 && rowIndex == options.headerRowIndex()) {
                 headers.clear();
-                headers.addAll(current);
+                headers.addAll(values);
                 return;
             }
-            if (options.headerRowIndex() >= 0 && rowNum < options.headerRowIndex()) {
+            if (options.headerRowIndex() >= 0 && rowIndex < options.headerRowIndex()) {
                 return;
             }
-            if (options.skipEmptyRows() && isEmpty(current)) {
+            if (options.skipEmptyRows() && isEmpty(values)) {
                 return;
             }
-            consumer.accept(new RowData(rowNum + 1, headers, current));
+            consumer.accept(new RowData(rowIndex + 1, headers, values));
+        }
+
+        @Override
+        public void doAfterAllAnalysed(AnalysisContext context) {
+            // 流式读取无需收尾动作
+        }
+
+        /// 缺失单元格补 `""`，保证列号与表头一一对应。
+        private static List<String> toValues(Map<Integer, String> data) {
+            if (data == null || data.isEmpty()) {
+                return List.of();
+            }
+            int width = 0;
+            for (Integer column : data.keySet()) {
+                if (column != null) {
+                    width = Math.max(width, column + 1);
+                }
+            }
+            List<String> values = new ArrayList<>(width);
+            for (int i = 0; i < width; i++) {
+                String value = data.get(i);
+                values.add(value == null ? "" : value);
+            }
+            return values;
         }
 
         private static boolean isEmpty(List<String> values) {
@@ -155,33 +135,6 @@ public final class ExcelReader {
             }
             return true;
         }
-
-        @Override
-        public void headerFooter(String text, boolean isHeader, String tagName) {
-            // 忽略页眉页脚
-        }
-    }
-
-    /// `A1` → 0，`AB12` → 27；解析失败时回退到当前列宽。
-    private static int columnIndex(String cellReference, int fallback) {
-        if (cellReference == null || cellReference.isEmpty()) {
-            return fallback;
-        }
-        int column = 0;
-        int seenLetter = 0;
-        for (int i = 0; i < cellReference.length(); i++) {
-            char c = cellReference.charAt(i);
-            if (c >= 'A' && c <= 'Z') {
-                column = column * 26 + (c - 'A' + 1);
-                seenLetter++;
-            } else if (c >= 'a' && c <= 'z') {
-                column = column * 26 + (c - 'a' + 1);
-                seenLetter++;
-            } else {
-                break;
-            }
-        }
-        return seenLetter == 0 ? fallback : Math.max(0, column - 1);
     }
 
     // ---------- CSV ----------

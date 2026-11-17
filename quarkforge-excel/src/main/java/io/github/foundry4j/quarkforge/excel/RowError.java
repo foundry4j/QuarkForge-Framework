@@ -1,7 +1,5 @@
 package io.github.foundry4j.quarkforge.excel;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /// ## RowError
@@ -17,6 +15,6 @@ public record RowError(int rowNumber, String field, String value, String message
     public RowError {
         rowValues = rowValues == null
                 ? List.of()
-                : Collections.unmodifiableList(new ArrayList<>(rowValues));
+                : List.copyOf(rowValues);
     }
 }

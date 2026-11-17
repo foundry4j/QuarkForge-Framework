@@ -9,7 +9,7 @@ ext {
     quarkusPlatform = '3.40.1.1'
     quarkusBom      = "io.quarkus.platform:quarkus-bom:${quarkusPlatform}"
     mapstructVer    = '1.6.3'
-    poiVer          = '5.4.1'
+    fesodVer        = '2.1.0-incubating'
 
     pkgUrl  = 'https://github.com/foundry4j/QuarkForge'
     pkgScm  = 'scm:git:https://github.com/foundry4j/QuarkForge.git'

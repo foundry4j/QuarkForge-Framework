@@ -45,6 +45,6 @@ dependencies {
     constraints {
         api "org.mapstruct:mapstruct:${rootProject.mapstructVer}"
         api "org.mapstruct:mapstruct-processor:${rootProject.mapstructVer}"
-        api "org.apache.poi:poi-ooxml:${rootProject.poiVer}"
+        api "org.apache.fesod:fesod-sheet:${rootProject.fesodVer}"
     }
 }
