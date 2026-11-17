@@ -83,6 +83,17 @@ public final class ExcelHttp {
         return download(filename, format, out -> ExcelExporter.write(out, format, spec, rows));
     }
 
+    /// 把导入错误明细作为文件直接下载（错误条数受 `maxErrors` 限制，适合小文件场景）。
+    ///
+    /// ```java
+    /// ImportResult result = ExcelHttp.importUpload(file, spec);
+    /// return ExcelHttp.downloadErrors(result, ExcelFormat.XLSX);
+    /// ```
+    public static Response downloadErrors(ImportResult result, ExcelFormat format) {
+        return download(ExcelImportErrors.filename(format), format,
+                out -> ExcelImportErrors.write(out, result, format));
+    }
+
     private static MediaType mediaType(ExcelFormat format) {
         if (format == ExcelFormat.CSV) {
             return MediaType.valueOf("text/csv;charset=UTF-8");

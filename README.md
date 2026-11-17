@@ -24,7 +24,7 @@ A modular rapid microservice development framework based on Quarkus, with built-
 | `quarkforge-crypto` | Encryption & masking | AES-256-GCM `CryptoService`, `EncryptedStringConverter` field encryption, `@Sensitive` response masking (`138****0000`) |
 | `quarkforge-cache` | Local cache | `CacheService` SPI, Caffeine default implementation, `@Cacheable`/`@CacheEvict`/`@CachePut` annotations, `@CacheWarmup` startup preloading, built-in Bloom-filter penetration guard and single-flight breakdown guard |
 | `quarkforge-dict` | Dictionary & metadata | Multi-tenant dict types/items, cached lookups, value→label translation, hierarchical dictionaries via `parentValue` |
-| `quarkforge-excel` | Excel / CSV import & export | Streaming xlsx/CSV reading, row-level validation with error rows, Apache Fesod streaming export, REST upload/download helpers |
+| `quarkforge-excel` | Excel / CSV import & export | Streaming xlsx/CSV reading, row-level validation with error rows, Apache Fesod streaming export, async export tasks with progress polling and downloads, downloadable import error reports, REST upload/download helpers |
 | `quarkforge-migration` | Database migration | Flyway starter that automatically runs versioned scripts under `db/migration` at application startup |
 | `quarkforge-security` | Security & authentication | `JwtTokenService` token issuance (jti, roles + `perms` permission claims), `TokenBlacklist` SPI (jti and user-level revocation enforced by a security identity augmentor), `AuthContext` current-user resolution, `@RequiresRole`/`@RequiresPermission` RBAC annotations with ANY/ALL semantics, `LoginUser` |
 | `quarkforge-auth` | Password login | `PasswordEncoder` (BCrypt default / Argon2 optional), login, rotating refresh tokens stored as SHA-256 hashes, refresh/logout endpoints |
@@ -667,6 +667,26 @@ Notes:
 - CSV defaults to UTF-8; configure another charset with `ExcelImportSpec.Builder#charset`.
 - `maxErrors(0)` means unlimited error collection — use it only for small files.
 - The export window (`windowSize`) trades temporary disk usage for memory; 100 rows is a good default.
+
+#### Async export and downloadable error reports
+
+`ExcelExportTaskService` runs an export on a virtual thread and returns immediately, so a large report never blocks the request that triggered it:
+
+```java
+ExcelExportTask task = exportTasks.submit(spec, "orders.xlsx", orderService.streamAll());
+// poll GET /excel/exports/{id} until status is SUCCEEDED, then GET /excel/exports/{id}/file
+```
+
+`ExcelExportTask` reports `status` (`PENDING` / `RUNNING` / `SUCCEEDED` / `FAILED`), `processedRows`, and `totalRows` (`-1` when the source is not a `Collection`). Failures never surface as an exception; the cause lands in `message`. Tasks are kept by `ExcelExportTaskStore` (in-memory by default — register a bean for Redis or a database in multi-node setups) and result files go through `FileStorage`, so `quarkforge.web.file.max-size` applies. `DELETE /excel/exports/{id}` removes both the task and its file.
+
+Import error rows can be returned as a file instead of only JSON:
+
+```java
+StoredFile report = ExcelImportErrors.store(storage, result, ExcelFormat.XLSX); // null when there are no errors
+
+// or stream it straight back from a resource method
+return ExcelHttp.downloadErrors(result, ExcelFormat.CSV);
+```
 
 ### Security & Authentication (security)
 
