@@ -7,14 +7,17 @@ import io.github.foundry4j.quarkforge.core.exception.BizException;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import io.quarkus.panache.common.Page;
+import io.quarkus.panache.common.Sort;
 import jakarta.persistence.metamodel.Attribute;
 import jakarta.persistence.metamodel.EntityType;
 import jakarta.persistence.metamodel.SingularAttribute;
+import jakarta.transaction.Transactional;
 
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /// ## BaseRepository
 /// 仓储基类，在 Panache 标准能力之上补充：
@@ -22,6 +25,8 @@ import java.util.List;
 /// - 分页查询并直接产出统一分页结构 [PageResult]
 /// - 游标分页 [findPageAfter]，用于深分页（避免 `offset` 越翻越慢）
 /// - `requireById`：查不到即抛 `NOT_FOUND` 业务异常，省去判空样板代码
+/// - 单字段便捷查询（`findFirstBy` / `findBy` / `listBy` / `countBy` / `existsBy` /
+///   `pageBy` / `requireBy` / `deleteBy` / `save`），字段名经 JPA 元模型校验
 ///
 /// 用法：
 ///
@@ -49,6 +54,91 @@ public abstract class BaseRepository<T> implements PanacheRepositoryBase<T, Long
     /// 全表分页查询。
     public PageResult<T> pageAll(int page, int size) {
         return page(findAll(), page, size);
+    }
+
+    /// ## 单字段便捷查询
+    ///
+    /// 用「实体字段名 + 值」做精确匹配，省去每个仓库手写 `find("field = ?1", value)` 的样板。
+    /// 字段名经 JPA 元模型校验（[validateField]），非法字段抛出 `40000`，
+    /// 避免把请求参数直接拼进 SQL；`null` 值按 SQL 语义不会命中（判空请用后续的 `Conditions`）。
+
+    /// 取第一条匹配记录，无匹配返回空。
+    public Optional<T> findFirstBy(String field, Object value) {
+        validateField(field);
+        return find(field + " = ?1", value).firstResultOptional();
+    }
+
+    /// 取唯一匹配记录，无匹配返回空；多于一条时抛 `NonUniqueResultException`。
+    public Optional<T> findBy(String field, Object value) {
+        validateField(field);
+        return find(field + " = ?1", value).singleResultOptional();
+    }
+
+    /// 列出全部匹配记录。
+    public List<T> listBy(String field, Object value) {
+        return listBy(field, value, null);
+    }
+
+    /// 列出全部匹配记录并按 [sort] 排序。
+    public List<T> listBy(String field, Object value, Sort sort) {
+        validateField(field);
+        PanacheQuery<T> query = sort == null
+                ? find(field + " = ?1", value)
+                : find(field + " = ?1", sort, value);
+        return query.list();
+    }
+
+    /// 统计匹配记录数。
+    public long countBy(String field, Object value) {
+        validateField(field);
+        return count(field + " = ?1", value);
+    }
+
+    /// 是否存在匹配记录。
+    public boolean existsBy(String field, Object value) {
+        return countBy(field, value) > 0;
+    }
+
+    /// 单条件偏移分页（page 从 1 开始）。
+    public PageResult<T> pageBy(String field, Object value, int page, int size) {
+        return pageBy(field, value, page, size, null);
+    }
+
+    /// 单条件偏移分页并按 [sort] 排序。
+    public PageResult<T> pageBy(String field, Object value, int page, int size, Sort sort) {
+        validateField(field);
+        PanacheQuery<T> query = sort == null
+                ? find(field + " = ?1", value)
+                : find(field + " = ?1", sort, value);
+        return page(query, page, size);
+    }
+
+    /// 取唯一匹配记录，不存在时抛 `NOT_FOUND` 业务异常。
+    public T requireBy(String field, Object value) {
+        return findFirstBy(field, value)
+                .orElseThrow(() -> new BizException(CommonErrorCode.NOT_FOUND));
+    }
+
+    /// 按条件批量删除，返回是否命中记录。
+    ///
+    /// 软删除仓储（[SoftDeleteRepository]）会覆写为批量软删除，仅作用于未删除数据。
+    @Transactional
+    public boolean deleteBy(String field, Object value) {
+        validateField(field);
+        return delete(field + " = ?1", value) > 0;
+    }
+
+    /// 持久化实体并返回：新实体（id 为空）执行 persist，已有 id 执行 merge。
+    @Transactional
+    public T save(T entity) {
+        if (entity == null) {
+            throw new BizException(CommonErrorCode.PARAM_ERROR, "实体不能为空");
+        }
+        if (identifierOf(entity) == null) {
+            persist(entity);
+            return entity;
+        }
+        return getEntityManager().merge(entity);
     }
 
     /// 按 ID 查询，不存在时抛出 `NOT_FOUND` 业务异常。
@@ -121,9 +211,14 @@ public abstract class BaseRepository<T> implements PanacheRepositoryBase<T, Long
         throw new BizException(CommonErrorCode.PARAM_ERROR, "无法解析仓储的实体类型");
     }
 
-    /// 通过 JPA 元模型校验排序字段：必须是实体上的标量属性
+    /// 校验字段为实体上的标量属性（关联属性会被拒绝），非法抛出 `40000`。
+    protected final void validateField(String field) {
+        resolveAttribute(field);
+    }
+
+    /// 通过 JPA 元模型校验排序/查询字段：必须是实体上的标量属性
     /// （Quarkus 会增强实体字节码，字段反射不可靠，因此以元模型为准）。
-    private SingularAttribute<?, ?> resolveAttribute(String field) {
+    protected SingularAttribute<?, ?> resolveAttribute(String field) {
         if (field == null || !field.matches("[A-Za-z][A-Za-z0-9_]*")) {
             throw new BizException(CommonErrorCode.PARAM_ERROR, "无效的排序字段: " + field);
         }

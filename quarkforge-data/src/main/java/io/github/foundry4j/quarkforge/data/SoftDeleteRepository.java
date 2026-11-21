@@ -96,6 +96,19 @@ public abstract class SoftDeleteRepository<T extends SoftDeleteEntity> extends B
                 Instant.now(), ActorContext.currentOr("system"));
     }
 
+    /// 按条件批量软删除（仅作用于未删除数据），返回是否命中记录。
+    ///
+    /// 字段名经元模型校验，匹配行被置为已删除（`deleteVersion` 取自身主键），
+    /// 与 [deleteAll] 一致：批量 update 不触发实体生命周期回调，不会产生审计记录。
+    @Override
+    @Transactional
+    public boolean deleteBy(String field, Object value) {
+        resolveAttribute(field);
+        return update("deleted = true, deletedAt = ?1, deletedBy = ?2, deleteVersion = id "
+                        + "where " + field + " = ?3 and " + ACTIVE_CONDITION,
+                Instant.now(), ActorContext.currentOr("system"), value) > 0;
+    }
+
     /// 从回收站恢复，返回是否命中已删除记录。
     ///
     /// 恢复会把 `deleteVersion` 归零，若业务唯一键已被其他未删除数据占用，
